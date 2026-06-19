@@ -64,11 +64,7 @@ Os dados (conteúdo, usuários, senha e uploads) ficam nas pastas `data/` e
    Ele instala as dependências e sobe o servidor.
 3. Acesse o painel: **http://localhost:8080/admin**
 
-Primeiro acesso (troque a senha após entrar):
 
-| Usuário | Senha      |
-|---------|------------|
-| `admin` | `flexivel` |
 
 ## Como configurar as TVs
 
