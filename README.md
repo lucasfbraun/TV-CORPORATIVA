@@ -44,7 +44,7 @@ docker compose up -d --build
 ```
 
 Pronto. Acesse o painel em **http://localhost:8080/admin**
-(login inicial `admin` / `flexivel`).
+
 
 Comandos úteis:
 
