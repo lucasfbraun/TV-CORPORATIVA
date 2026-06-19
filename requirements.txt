@@ -1,0 +1,9 @@
+# TV Corporativa - dependências do servidor central
+Flask==3.0.3
+Werkzeug==3.0.3
+waitress==3.0.0
+
+# Integração de KPIs (opcional - apenas para integrations/integracao_kpi.py)
+pandas==2.2.2
+openpyxl==3.1.5
+requests==2.32.3

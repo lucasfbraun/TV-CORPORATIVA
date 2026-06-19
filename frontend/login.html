@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login – TV Corporativa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  /* Identidade Grupo Flexível (paleta híbrida — verde da marca) */
+  --brand-petrol:#0C3B38; --brand-teal:#0F7C70; --brand-lime:#76C043; --amber:#FFAB40;
+  --blue-dark:#0C3B38; --blue-mid:#14534D; --blue-light:#0F7C70;
+  --accent:#76C043; --green:#4caf50; --red:#e06c75;
+  --white:#fff; --gray:#f0f4f8; --text:#2d3a4a; --dim:#7a8fa6;
+}
+body {
+  font-family:'Roboto','Segoe UI',Arial,sans-serif;
+  background:linear-gradient(135deg,var(--blue-dark),var(--blue-mid));
+  color:var(--text); min-height:100vh;
+  display:flex; align-items:center; justify-content:center; padding:20px;
+}
+.login-card {
+  background:var(--white); border-radius:16px; padding:36px 32px;
+  box-shadow:0 10px 40px rgba(0,0,0,.35); width:100%; max-width:380px;
+}
+.brand { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+.logo-box {
+  width:44px;height:44px;background:var(--accent);border-radius:10px;
+  display:flex;align-items:center;justify-content:center;font-weight:900;
+  color:var(--blue-dark);font-size:20px;
+}
+.brand-name { font-size:17px;font-weight:700;color:var(--blue-dark); }
+.brand-sub  { font-size:10px;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase; }
+h1 { font-size:18px;margin:22px 0 4px;color:var(--text); }
+.subtitle { font-size:13px;color:var(--dim);margin-bottom:22px; }
+.form-group { margin-bottom:16px; }
+label { display:block;font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px; }
+.form-input {
+  width:100%;padding:11px 13px;border:1px solid #d4dde8;border-radius:9px;
+  font-size:14px;transition:border .2s;
+}
+.form-input:focus { outline:none;border-color:var(--blue-light);box-shadow:0 0 0 3px rgba(46,117,182,.12); }
+.btn-login {
+  width:100%;padding:12px;background:var(--blue-light);color:#fff;border:none;
+  border-radius:9px;font-size:15px;font-weight:600;cursor:pointer;margin-top:6px;transition:background .2s;
+}
+.btn-login:hover { background:#2360a0; }
+.btn-login:disabled { opacity:.6;cursor:default; }
+.error-msg {
+  background:#fdecea;color:#b5302a;border:1px solid #f5c2c0;
+  border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:14px;display:none;
+}
+.hint { font-size:11px;color:var(--dim);text-align:center;margin-top:18px;line-height:1.5; }
+.brand-logo { text-align:center;margin-bottom:4px; }
+.brand-logo img { width:220px;max-width:100%;height:auto; }
+.brand-sub-center { text-align:center;font-size:11px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px; }
+</style>
+</head>
+<body>
+  <form class="login-card" id="login-form" onsubmit="return doLogin(event)">
+    <div class="brand-logo"><img src="/assets/logo.png" alt="Grupo Flexível"></div>
+    <div class="brand-sub-center">TV Corporativa</div>
+    <h1 style="text-align:center;">Painel de Administração</h1>
+    <div class="subtitle">Entre com suas credenciais para continuar.</div>
+
+    <div class="error-msg" id="error-msg"></div>
+
+    <div class="form-group">
+      <label for="username">Usuário</label>
+      <input class="form-input" id="username" autocomplete="username" autofocus required>
+    </div>
+    <div class="form-group">
+      <label for="password">Senha</label>
+      <input class="form-input" id="password" type="password" autocomplete="current-password" required>
+    </div>
+    <button class="btn-login" id="btn" type="submit">Entrar</button>
+
+    <div class="hint">Acesso restrito à equipe administrativa.<br>Em caso de dúvida, contate a TI.</div>
+  </form>
+
+<script>
+function qs(name){ return new URLSearchParams(location.search).get(name); }
+
+async function doLogin(e){
+  e.preventDefault();
+  const btn = document.getElementById('btn');
+  const err = document.getElementById('error-msg');
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Entrando...';
+  try {
+    const r = await fetch('/api/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value
+      })
+    });
+    const data = await r.json();
+    if (r.ok) {
+      const next = qs('next') || '/admin';
+      location.href = next;
+    } else {
+      err.textContent = data.error || 'Falha no login.';
+      err.style.display = 'block';
+    }
+  } catch(ex) {
+    err.textContent = 'Não foi possível conectar ao servidor.';
+    err.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Entrar';
+  }
+  return false;
+}
+</script>
+</body>
+</html>

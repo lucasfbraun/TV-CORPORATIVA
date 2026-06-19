@@ -1,0 +1,25 @@
+# Dados de runtime (vêm via volume, não devem entrar na imagem)
+data/
+uploads/
+
+# Não são necessários no container do servidor
+docs/
+tests/
+integrations/
+scripts/
+*.xlsx
+*.bat
+
+# Python / caches
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# Git / SO / temporários do Office
+.git/
+.gitignore
+~$*
+.~lock.*#
+.DS_Store
+Thumbs.db

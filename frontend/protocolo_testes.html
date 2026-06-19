@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Protocolo de Testes – TV Corporativa</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --blue:#1b3a5c; --accent:#f4b942; --green:#4caf50;
+  --red:#e06c75; --text:#2d3a4a; --dim:#7a8fa6; --white:#fff; --bg:#f0f4f8;
+}
+body { font-family:'Segoe UI',Arial,sans-serif; background:var(--bg); color:var(--text); }
+.page { max-width:860px; margin:0 auto; padding:36px 24px 80px; }
+
+.doc-header {
+  background:var(--blue);color:var(--white);border-radius:14px;
+  padding:30px 36px;margin-bottom:28px;
+}
+.doc-header h1 { font-size:24px;font-weight:700;margin-bottom:6px; }
+.doc-header p  { font-size:14px;opacity:.7; }
+.meta-row { display:flex;gap:24px;margin-top:14px;font-size:12px;opacity:.6; }
+
+.progress-card {
+  background:var(--white);border-radius:12px;padding:20px 26px;
+  margin-bottom:24px;display:flex;align-items:center;gap:24px;
+  box-shadow:0 2px 10px rgba(0,0,0,.08);
+}
+.progress-label { font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px; }
+.progress-num   { font-size:28px;font-weight:700;color:var(--blue); }
+.progress-bar-wrap { flex:1;background:#e5eaf2;border-radius:8px;height:10px; }
+.progress-bar { height:10px;background:var(--accent);border-radius:8px;transition:width .4s; }
+
+/* SECTIONS */
+.section { background:var(--white);border-radius:12px;padding:22px 26px;margin-bottom:18px;box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.section-title { font-size:16px;font-weight:700;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #e5eaf2;display:flex;align-items:center;gap:10px; }
+.section-sub { font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px; }
+
+/* CHECKLIST */
+.check-item {
+  display:flex;align-items:flex-start;gap:12px;
+  padding:12px 14px;border-radius:8px;margin-bottom:6px;
+  border:1.5px solid #e5eaf2;cursor:pointer;transition:all .2s;
+  background:var(--white);
+}
+.check-item:hover { border-color:#b0c8e8;background:#f5f9ff; }
+.check-item.ok     { border-color:var(--green);background:#f0fbf2; }
+.check-item.fail   { border-color:var(--red);background:#fef5f5; }
+.check-item.skip   { border-color:#ccc;background:#f8f8f8;opacity:.7; }
+
+.check-box {
+  min-width:22px;height:22px;border-radius:5px;border:2px solid #c0ccd8;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;transition:all .2s;flex-shrink:0;margin-top:1px;
+  cursor:pointer;
+}
+.check-item.ok   .check-box { background:var(--green);border-color:var(--green);color:var(--white); }
+.check-item.fail .check-box { background:var(--red);border-color:var(--red);color:var(--white); }
+.check-item.skip .check-box { background:#ccc;border-color:#ccc;color:var(--white); }
+
+.check-text { flex:1; }
+.check-title { font-size:14px;font-weight:600;margin-bottom:3px; }
+.check-desc  { font-size:12px;color:var(--dim);line-height:1.5; }
+
+.check-actions { display:flex;gap:6px;margin-top:8px; }
+.btn-sm {
+  padding:4px 10px;border-radius:6px;border:1.5px solid;font-size:11px;
+  font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s;
+}
+.btn-ok   { border-color:var(--green);color:var(--green);background:transparent; }
+.btn-ok:hover { background:var(--green);color:var(--white); }
+.btn-fail { border-color:var(--red);color:var(--red);background:transparent; }
+.btn-fail:hover { background:var(--red);color:var(--white); }
+.btn-skip { border-color:#bbb;color:#888;background:transparent; }
+.btn-skip:hover { background:#eee; }
+
+.obs-input {
+  width:100%;border:1px solid #dce4ed;border-radius:6px;
+  padding:6px 10px;font-size:12px;font-family:inherit;
+  margin-top:6px;color:var(--text);resize:vertical;min-height:44px;
+}
+.obs-input:focus { outline:none;border-color:#2e75b6; }
+
+/* SUMMARY */
+.summary {
+  background:var(--blue);color:var(--white);border-radius:12px;
+  padding:22px 26px;margin-bottom:18px;
+}
+.summary h3 { font-size:15px;font-weight:700;margin-bottom:14px; }
+.summary-grid { display:grid;grid-template-columns:repeat(4,1fr);gap:12px; }
+.sum-card { background:rgba(255,255,255,.1);border-radius:8px;padding:12px;text-align:center; }
+.sum-num { font-size:28px;font-weight:700; }
+.sum-lbl { font-size:11px;opacity:.7;margin-top:3px; }
+
+/* BUTTONS */
+.action-row { display:flex;gap:10px;flex-wrap:wrap;margin-top:20px; }
+.btn {
+  padding:10px 20px;border-radius:8px;border:none;font-size:14px;
+  font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s;
+  display:inline-flex;align-items:center;gap:7px;
+}
+.btn-primary { background:#2e75b6;color:var(--white); }
+.btn-primary:hover { background:#1a5fa0; }
+.btn-outline { background:transparent;color:#2e75b6;border:1.5px solid #2e75b6; }
+.btn-outline:hover { background:#eaf1fb; }
+.btn-success { background:var(--green);color:var(--white); }
+
+.callout { border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;line-height:1.6; }
+.callout.info { background:#e8f4fd;border-left:4px solid #2e75b6; }
+.callout.warning { background:#fff4e5;border-left:4px solid var(--accent); }
+
+@media print {
+  body { background:white; }
+  .action-row,.btn-sm,.check-actions { display:none; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="doc-header">
+  <h1>🧪 Protocolo de Testes – TV Corporativa</h1>
+  <p>Checklist interativo para validação do sistema antes da implantação em produção</p>
+  <div class="meta-row">
+    <span>📅 Data: <span id="test-date"></span></span>
+    <span>🔖 Fase: Piloto (1 tela)</span>
+    <span>✍️ Responsável: TI</span>
+  </div>
+</div>
+
+<!-- PROGRESSO GERAL -->
+<div class="progress-card">
+  <div>
+    <div class="progress-label">Progresso dos Testes</div>
+    <div class="progress-num" id="prog-text">0 / 0</div>
+  </div>
+  <div style="flex:1">
+    <div class="progress-bar-wrap"><div class="progress-bar" id="prog-bar" style="width:0%"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-top:4px;">
+      <span id="ok-count">✅ 0 OK</span>
+      <span id="fail-count">❌ 0 Falha</span>
+      <span id="skip-count">⏭️ 0 Ignorado</span>
+    </div>
+  </div>
+</div>
+
+<!-- SUMÁRIO -->
+<div class="summary" id="summary-card" style="display:none">
+  <h3>📋 Resultado Final do Teste</h3>
+  <div class="summary-grid">
+    <div class="sum-card"><div class="sum-num" id="s-ok">0</div><div class="sum-lbl">✅ Aprovados</div></div>
+    <div class="sum-card"><div class="sum-num" id="s-fail">0</div><div class="sum-lbl">❌ Falhas</div></div>
+    <div class="sum-card"><div class="sum-num" id="s-skip">0</div><div class="sum-lbl">⏭️ Ignorados</div></div>
+    <div class="sum-card"><div class="sum-num" id="s-pct">0%</div><div class="sum-lbl">Taxa de Aprovação</div></div>
+  </div>
+</div>
+
+<!-- ── SEÇÃO A: INFRAESTRUTURA ─────────────────────────────────────────── -->
+<div class="section">
+  <div class="section-title">🖥️ A – Infraestrutura e Hardware</div>
+  <div id="checks-A"></div>
+</div>
+
+<!-- ── SEÇÃO B: SOFTWARE ──────────────────────────────────────────────── -->
+<div class="section">
+  <div class="section-title">⚙️ B – Software e Inicialização</div>
+  <div id="checks-B"></div>
+</div>
+
+<!-- ── SEÇÃO C: CONTEÚDO ──────────────────────────────────────────────── -->
+<div class="section">
+  <div class="section-title">🎞️ C – Exibição de Conteúdo</div>
+  <div id="checks-C"></div>
+</div>
+
+<!-- ── SEÇÃO D: ADMINISTRAÇÃO ─────────────────────────────────────────── -->
+<div class="section">
+  <div class="section-title">🛠️ D – Painel de Administração</div>
+  <div id="checks-D"></div>
+</div>
+
+<!-- ── SEÇÃO E: REDE E MULTI-TELAS ────────────────────────────────────── -->
+<div class="section">
+  <div class="section-title">🌐 E – Rede e Sincronização</div>
+  <div id="checks-E"></div>
+</div>
+
+<!-- ── SEÇÃO F: ESTABILIDADE ──────────────────────────────────────────── -->
+<div class="section">
+  <div class="section-title">⏱️ F – Estabilidade e Performance</div>
+  <div id="checks-F"></div>
+</div>
+
+<div class="action-row">
+  <button class="btn btn-primary" onclick="exportReport()">📄 Exportar Relatório</button>
+  <button class="btn btn-outline" onclick="resetAll()">🔄 Reiniciar Testes</button>
+  <button class="btn btn-success" onclick="window.print()">🖨️ Imprimir</button>
+</div>
+
+</div><!-- /page -->
+
+<script>
+const CHECKS = {
+  A: [
+    {id:"A1", title:"TV e cabo HDMI conectados corretamente", desc:"A imagem está aparecendo na TV sem distorções ou mensagens de erro."},
+    {id:"A2", title:"Resolução configurada em 1920×1080 (Full HD)", desc:"Verificar nas configurações de vídeo do computador/player."},
+    {id:"A3", title:"Player (PC/RPi/Android) ligado e operacional", desc:"O dispositivo inicia normalmente, sem erros de hardware."},
+    {id:"A4", title:"Conexão de rede ativa (Wi-Fi ou cabo)", desc:"Confirmar que o player tem acesso à rede local da empresa."},
+    {id:"A5", title:"Posicionamento físico da TV adequado", desc:"Altura, ângulo de visão e iluminação do ambiente verificados."},
+  ],
+  B: [
+    {id:"B1", title:"Chrome / browser abre automaticamente ao ligar", desc:"Testar desligando e ligando o player – o browser deve abrir sozinho."},
+    {id:"B2", title:"display.html carrega sem erros", desc:"A tela da TV exibe o conteúdo sem mensagens de erro ou tela branca."},
+    {id:"B3", title:"Modo tela cheia ativo (sem barras do browser)", desc:"A tela está em modo kiosk – sem barra de endereços ou botões."},
+    {id:"B4", title:"server.py rodando no computador servidor", desc:"Acessar http://[IP]:8080 de outro computador e confirmar resposta."},
+    {id:"B5", title:"Inicialização automática após queda de energia", desc:"Simular desligamento e religamento – sistema deve voltar sozinho."},
+  ],
+  C: [
+    {id:"C1", title:"Slide de Aviso exibe corretamente (título, texto, ícone)", desc:"Verificar se o conteúdo está legível e bem formatado na TV."},
+    {id:"C2", title:"Slide de KPI exibe os indicadores com valores corretos", desc:"Confirmar que os números batem com as fontes de dados reais."},
+    {id:"C3", title:"Slide de Agenda exibe eventos com datas corretas", desc:"Verificar formatação de data, horário e local."},
+    {id:"C4", title:"Rotação automática entre slides funcionando", desc:"Slides mudam automaticamente no intervalo configurado."},
+    {id:"C5", title:"Transição entre slides suave (sem travamentos)", desc:"A animação de transição é fluida, sem piscadas ou lentidão."},
+    {id:"C6", title:"Ticker do rodapé rolando corretamente", desc:"As mensagens do rodapé estão visíveis e rolando continuamente."},
+    {id:"C7", title:"Relógio e data no cabeçalho atualizando em tempo real", desc:"O horário muda a cada segundo conforme esperado."},
+    {id:"C8", title:"Textos legíveis à distância de visualização real", desc:"Sentar/ficar de pé na posição real de visualização e confirmar legibilidade."},
+  ],
+  D: [
+    {id:"D1", title:"admin.html abre e carrega sem erros", desc:"Acessar admin.html no computador de administração."},
+    {id:"D2", title:"Criar novo aviso e verificar na TV", desc:"Criar um aviso de teste no admin → salvar → confirmar que aparece na TV."},
+    {id:"D3", title:"Editar valor de KPI e verificar atualização na TV", desc:"Mudar o valor de um indicador → salvar → TV deve atualizar em até 5 min."},
+    {id:"D4", title:"Adicionar evento na agenda e verificar na TV", desc:"Criar evento de teste no admin e confirmar exibição na TV."},
+    {id:"D5", title:"Ativar/desativar slide funciona corretamente", desc:"Desativar um slide → confirmar que não aparece mais na TV."},
+    {id:"D6", title:"Exportar e importar backup (JSON) funcionando", desc:"Exportar content.json → limpar → importar de volta → dados restaurados."},
+  ],
+  E: [
+    {id:"E1", title:"TV acessa o servidor pela rede (URL com IP)", desc:"Confirmar que a URL http://[IP]:8080/display.html funciona na TV."},
+    {id:"E2", title:"Alteração no admin reflete em todas as telas em ≤5 min", desc:"Salvar uma mudança e verificar em outra tela após alguns minutos."},
+    {id:"E3", title:"Servidor com IP fixo configurado", desc:"O servidor tem IP estático ou reserva DHCP configurada no roteador."},
+    {id:"E4", title:"Sistema funciona após queda do servidor (modo offline)", desc:"Parar o server.py e verificar se a TV ainda exibe o último conteúdo."},
+  ],
+  F: [
+    {id:"F1", title:"Sistema rodando estável por 1 hora sem travamentos", desc:"Deixar a TV ligada por 1h e verificar se continuou funcionando normalmente."},
+    {id:"F2", title:"Sistema rodando estável por 8 horas (jornada completa)", desc:"Ligar às 07:00 e verificar às 17:00 se está funcionando sem problemas."},
+    {id:"F3", title:"Temperatura do player dentro do limite (< 70°C)", desc:"Verificar a temperatura do dispositivo após 2h em operação."},
+    {id:"F4", title:"Uso de CPU abaixo de 60% em operação normal", desc:"Abrir o Gerenciador de Tarefas e verificar o uso de CPU."},
+    {id:"F5", title:"Sem vazamento de memória após 8h", desc:"Verificar uso de RAM antes e após jornada completa – deve ser estável."},
+  ],
+};
+
+// ─────────────────────────────────────────────────────────
+let state = {};
+
+function loadState() {
+  try {
+    const r = localStorage.getItem('tv_test_state');
+    if (r) state = JSON.parse(r);
+  } catch(e) {}
+}
+function saveState() {
+  localStorage.setItem('tv_test_state', JSON.stringify(state));
+}
+
+function setStatus(id, status) {
+  const el = document.getElementById('item-' + id);
+  el.classList.remove('ok','fail','skip');
+  if (status) el.classList.add(status);
+  const box = el.querySelector('.check-box');
+  box.textContent = status === 'ok' ? '✓' : status === 'fail' ? '✗' : status === 'skip' ? '–' : '';
+
+  const obsEl = el.querySelector('.obs-input');
+  state[id] = { status, obs: obsEl ? obsEl.value : '' };
+  saveState();
+  updateProgress();
+}
+
+function setObs(id, val) {
+  if (!state[id]) state[id] = {};
+  state[id].obs = val;
+  saveState();
+}
+
+function renderSection(sectionId, checks) {
+  const container = document.getElementById('checks-' + sectionId);
+  container.innerHTML = checks.map(c => {
+    const s = state[c.id] || {};
+    const status = s.status || '';
+    return `
+      <div class="check-item ${status}" id="item-${c.id}">
+        <div class="check-box">${status==='ok'?'✓':status==='fail'?'✗':status==='skip'?'–':''}</div>
+        <div class="check-text">
+          <div class="check-title">${c.id} – ${c.title}</div>
+          <div class="check-desc">${c.desc}</div>
+          <div class="check-actions">
+            <button class="btn-sm btn-ok"   onclick="setStatus('${c.id}','ok')">✓ OK</button>
+            <button class="btn-sm btn-fail" onclick="setStatus('${c.id}','fail')">✗ Falha</button>
+            <button class="btn-sm btn-skip" onclick="setStatus('${c.id}','skip')">– Ignorar</button>
+          </div>
+          <textarea class="obs-input" placeholder="Observações (opcional)..." oninput="setObs('${c.id}',this.value)">${s.obs||''}</textarea>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function updateProgress() {
+  const all = Object.values(CHECKS).flat();
+  const total = all.length;
+  const done  = all.filter(c => state[c.id]?.status === 'ok').length;
+  const fail  = all.filter(c => state[c.id]?.status === 'fail').length;
+  const skip  = all.filter(c => state[c.id]?.status === 'skip').length;
+  const answered = done + fail + skip;
+  const pct = total > 0 ? Math.round(done / total * 100) : 0;
+
+  document.getElementById('prog-text').textContent = `${answered} / ${total}`;
+  document.getElementById('prog-bar').style.width = (answered/total*100) + '%';
+  document.getElementById('ok-count').textContent   = `✅ ${done} OK`;
+  document.getElementById('fail-count').textContent = `❌ ${fail} Falha`;
+  document.getElementById('skip-count').textContent = `⏭️ ${skip} Ignorado`;
+
+  // Mostrar sumário quando todos respondidos
+  const summary = document.getElementById('summary-card');
+  if (answered === total) {
+    summary.style.display = 'block';
+    document.getElementById('s-ok').textContent   = done;
+    document.getElementById('s-fail').textContent = fail;
+    document.getElementById('s-skip').textContent = skip;
+    document.getElementById('s-pct').textContent  = pct + '%';
+  } else {
+    summary.style.display = 'none';
+  }
+}
+
+function exportReport() {
+  const all = Object.values(CHECKS).flat();
+  const lines = ['RELATÓRIO DE TESTES – TV CORPORATIVA', '='.repeat(50),
+    `Data: ${new Date().toLocaleString('pt-BR')}`, ''];
+  for (const [sec, checks] of Object.entries(CHECKS)) {
+    lines.push(`\nSeção ${sec}:`);
+    checks.forEach(c => {
+      const s = state[c.id] || {};
+      const status = s.status ? s.status.toUpperCase() : 'PENDENTE';
+      lines.push(`  [${status}] ${c.id} – ${c.title}`);
+      if (s.obs) lines.push(`         Obs: ${s.obs}`);
+    });
+  }
+  const done = all.filter(c=>state[c.id]?.status==='ok').length;
+  const fail = all.filter(c=>state[c.id]?.status==='fail').length;
+  lines.push('', '='.repeat(50));
+  lines.push(`RESULTADO: ${done} OK | ${fail} FALHAS | Total: ${all.length}`);
+
+  const blob = new Blob([lines.join('\n')], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `relatorio_testes_tv_${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+}
+
+function resetAll() {
+  if (!confirm('Reiniciar todos os testes? Os resultados serão apagados.')) return;
+  state = {};
+  saveState();
+  init();
+}
+
+function init() {
+  loadState();
+  document.getElementById('test-date').textContent = new Date().toLocaleDateString('pt-BR');
+  for (const [sec, checks] of Object.entries(CHECKS)) {
+    renderSection(sec, checks);
+  }
+  updateProgress();
+}
+
+init();
+</script>
+</body>
+</html>

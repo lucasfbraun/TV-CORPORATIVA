@@ -1,0 +1,27 @@
+# Dados de runtime (gerados pelo servidor)
+/data/
+/uploads/
+
+# Segredos / sessão
+secret.key
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Logs
+*.log
+log_instalacao.txt
+
+# Temporários do Office
+~$*
+.~lock.*#
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

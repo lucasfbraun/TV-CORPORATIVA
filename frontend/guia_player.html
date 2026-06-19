@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guia de Configuração dos Players – TV Corporativa</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --blue:#1b3a5c; --accent:#f4b942; --green:#4caf50; --red:#e06c75;
+  --text:#2d3a4a; --dim:#7a8fa6; --bg:#f0f4f8; --white:#fff;
+}
+body { font-family:'Segoe UI',Arial,sans-serif; background:var(--bg); color:var(--text); }
+
+.page { max-width:860px; margin:0 auto; padding:40px 24px 80px; }
+
+/* HEADER */
+.doc-header {
+  background:var(--blue);color:var(--white);
+  border-radius:14px;padding:32px 36px;margin-bottom:32px;
+}
+.doc-header h1 { font-size:26px;font-weight:700;margin-bottom:6px; }
+.doc-header p  { font-size:14px;opacity:.7; }
+.doc-meta { display:flex;gap:24px;margin-top:16px;font-size:12px;opacity:.6; }
+
+/* TOC */
+.toc {
+  background:var(--white);border-radius:12px;padding:22px 26px;
+  margin-bottom:28px;border-left:4px solid var(--accent);
+}
+.toc h3 { font-size:14px;font-weight:700;margin-bottom:10px;color:var(--dim); }
+.toc a  { display:block;font-size:14px;color:var(--blue);text-decoration:none;
+           padding:3px 0;border-bottom:1px dashed #e0e8f0; }
+.toc a:last-child { border-bottom:none; }
+.toc a:hover { color:var(--accent); }
+
+/* SECTIONS */
+.section { background:var(--white);border-radius:12px;padding:26px 30px;margin-bottom:20px; }
+.section h2 { font-size:19px;font-weight:700;margin-bottom:18px;padding-bottom:10px;
+               border-bottom:2px solid #e5eaf2;display:flex;align-items:center;gap:10px; }
+.section h3 { font-size:15px;font-weight:600;margin:20px 0 10px;color:var(--blue); }
+p { font-size:14px;line-height:1.75;margin-bottom:12px; }
+ul, ol { padding-left:22px;margin-bottom:12px; }
+li { font-size:14px;line-height:1.8; }
+
+/* STEPS */
+.steps { list-style:none;padding:0; }
+.steps li {
+  display:flex;gap:14px;align-items:flex-start;
+  padding:12px 16px;background:#f7f9fc;border-radius:8px;margin-bottom:8px;
+  border-left:3px solid var(--accent);
+}
+.step-num {
+  min-width:26px;height:26px;background:var(--accent);color:var(--blue);
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:13px;flex-shrink:0;margin-top:1px;
+}
+.step-text { flex:1;font-size:14px;line-height:1.6; }
+
+/* CODE */
+code {
+  background:#f0f4f8;border:1px solid #dce4ed;border-radius:4px;
+  padding:2px 8px;font-size:13px;font-family:'Consolas',monospace;color:#c0392b;
+}
+pre {
+  background:#1e2a3a;color:#c8d8e8;border-radius:8px;
+  padding:16px 18px;overflow-x:auto;margin:10px 0 14px;
+  font-size:13px;line-height:1.6;font-family:'Consolas',monospace;
+}
+pre code { background:none;border:none;color:inherit;padding:0; }
+
+/* CALLOUTS */
+.callout {
+  border-radius:8px;padding:14px 18px;margin:14px 0;
+  font-size:14px;line-height:1.6;display:flex;gap:12px;align-items:flex-start;
+}
+.callout.info    { background:#e8f4fd;border-left:4px solid #2e75b6; }
+.callout.success { background:#e8f6ee;border-left:4px solid var(--green); }
+.callout.warning { background:#fff4e5;border-left:4px solid var(--accent); }
+.callout.danger  { background:#fdecea;border-left:4px solid var(--red); }
+.callout-icon { font-size:18px;flex-shrink:0;margin-top:1px; }
+.callout b { display:block;margin-bottom:4px; }
+
+/* TABLE */
+table { width:100%;border-collapse:collapse;font-size:13px;margin:12px 0; }
+th { background:#f0f4f8;padding:10px 14px;text-align:left;font-size:11px;
+     color:var(--dim);text-transform:uppercase;letter-spacing:1px;border-bottom:2px solid #dce4ed; }
+td { padding:11px 14px;border-bottom:1px solid #edf1f7;vertical-align:top; }
+tr:hover td { background:#fafcff; }
+
+/* BADGE */
+.badge { display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600; }
+.badge.green { background:#e8f6ee;color:#2a7a45; }
+.badge.blue  { background:#e8f4fd;color:#1a5fa0; }
+.badge.amber { background:#fff4e5;color:#a06000; }
+
+@media print {
+  body { background:white; }
+  .page { padding:20px; }
+  .section { box-shadow:none;border:1px solid #dce4ed; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="doc-header">
+  <h1>📺 Guia de Configuração dos Players</h1>
+  <p>TV Corporativa – Grupo Flexível &nbsp;|&nbsp; Configuração de hardware e software para exibição nas telas</p>
+  <div class="doc-meta">
+    <span>📅 Junho 2026</span>
+    <span>🔖 Versão 1.0</span>
+    <span>👥 6 a 20 telas</span>
+    <span>✍️ Equipe de TI</span>
+  </div>
+</div>
+
+<div class="toc">
+  <h3>ÍNDICE</h3>
+  <a href="#hardware">1. Opções de Hardware (Player)</a>
+  <a href="#windows">2. Configuração no Windows (PC / Mini-PC)</a>
+  <a href="#raspberry">3. Configuração no Raspberry Pi</a>
+  <a href="#android">4. Configuração em Android Box / Smart TV</a>
+  <a href="#rede">5. Configuração de Rede</a>
+  <a href="#manutencao">6. Manutenção e Troubleshooting</a>
+</div>
+
+<!-- ── SEÇÃO 1: HARDWARE ──────────────────────────────────────────────── -->
+<div class="section" id="hardware">
+  <h2>🖥️ 1. Opções de Hardware (Player)</h2>
+  <p>Escolha o player conforme o orçamento e facilidade de manutenção:</p>
+  <table>
+    <thead><tr><th>Opção</th><th>Custo aprox.</th><th>Dificuldade</th><th>Ideal para</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>PC ou Mini-PC (Windows)</b><br><small>Intel NUC, Beelink, PC reciclado</small></td>
+        <td>R$ 400–1.200</td>
+        <td><span class="badge green">Fácil</span></td>
+        <td>Salas de reunião, recepção, área administrativa</td>
+      </tr>
+      <tr>
+        <td><b>Raspberry Pi 4 (Linux)</b><br><small>Raspberry Pi 4 + microSD 32GB</small></td>
+        <td>R$ 350–600</td>
+        <td><span class="badge blue">Médio</span></td>
+        <td>Múltiplas telas, chão de fábrica, áreas com poeira</td>
+      </tr>
+      <tr>
+        <td><b>Android Box</b><br><small>MXQ Pro, H96 Max ou similar</small></td>
+        <td>R$ 150–350</td>
+        <td><span class="badge green">Fácil</span></td>
+        <td>Ambiente simples, baixo orçamento</td>
+      </tr>
+      <tr>
+        <td><b>Smart TV (Android embutido)</b><br><small>Samsung, LG, TCL com Android</small></td>
+        <td>Sem custo extra</td>
+        <td><span class="badge green">Fácil</span></td>
+        <td>Quando a TV já tem Android integrado</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="callout info">
+    <span class="callout-icon">💡</span>
+    <div><b>Recomendação Grupo Flexível:</b> Para facilidade de manutenção, opte por Mini-PC Windows para telas administrativas e Raspberry Pi para o chão de fábrica. Ambos suportam atualização remota.</div>
+  </div>
+</div>
+
+<!-- ── SEÇÃO 2: WINDOWS ───────────────────────────────────────────────── -->
+<div class="section" id="windows">
+  <h2>🪟 2. Configuração no Windows (PC / Mini-PC)</h2>
+
+  <h3>2.1 Pré-requisitos</h3>
+  <ul>
+    <li>Windows 10 ou 11</li>
+    <li>Google Chrome instalado</li>
+    <li>Conexão com a rede local da empresa</li>
+  </ul>
+
+  <h3>2.2 Configurar o Chrome em modo Kiosk (tela cheia)</h3>
+  <p>O modo kiosk abre o Chrome já em tela cheia, sem barra de endereços ou botões, ideal para TVs.</p>
+  <ol class="steps">
+    <li>
+      <div class="step-num">1</div>
+      <div class="step-text">Crie um atalho do Chrome na Área de Trabalho: clique com o botão direito → <b>Novo → Atalho</b>.</div>
+    </li>
+    <li>
+      <div class="step-num">2</div>
+      <div class="step-text">No campo de local do atalho, insira o comando abaixo (ajuste o IP e porta conforme seu servidor):
+        <pre><code>"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk http://[IP-SERVIDOR]:8080/display.html --no-first-run --disable-infobars --autoplay-policy=no-user-gesture-required</code></pre>
+        <p>Se usar arquivo local (sem servidor), substitua a URL por:</p>
+        <pre><code>"C:\Users\[usuario]\...\tv corporativa\display.html"</code></pre>
+      </div>
+    </li>
+    <li>
+      <div class="step-num">3</div>
+      <div class="step-text">Nomeie o atalho <b>"TV Corporativa"</b> e clique em Concluir.</div>
+    </li>
+    <li>
+      <div class="step-num">4</div>
+      <div class="step-text">Teste o atalho. A TV deve abrir em tela cheia sem bordas. <b>Pressione Alt+F4</b> para sair do modo kiosk quando necessário.</div>
+    </li>
+  </ol>
+
+  <h3>2.3 Iniciar automaticamente com o Windows</h3>
+  <ol class="steps">
+    <li>
+      <div class="step-num">1</div>
+      <div class="step-text">Pressione <code>Win + R</code>, digite <code>shell:startup</code> e pressione Enter. A pasta de Inicialização do Windows abrirá.</div>
+    </li>
+    <li>
+      <div class="step-num">2</div>
+      <div class="step-text">Copie o atalho "TV Corporativa" para essa pasta. Agora ele abrirá automaticamente ao ligar o computador.</div>
+    </li>
+    <li>
+      <div class="step-num">3</div>
+      <div class="step-text">Configure o Windows para fazer login automático: <code>Win + R</code> → <code>netplwiz</code> → desmarque "Os usuários devem digitar um nome de usuário e senha" → OK.</div>
+    </li>
+  </ol>
+
+  <h3>2.4 Configurar desligamento e reinício automático</h3>
+  <p>No Agendador de Tarefas do Windows, crie duas tarefas:</p>
+  <table>
+    <thead><tr><th>Tarefa</th><th>Horário</th><th>Ação</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Ligar TV (reiniciar)</td>
+        <td>Seg–Sex, 07:30</td>
+        <td><code>shutdown /r /t 0</code></td>
+      </tr>
+      <tr>
+        <td>Desligar TV</td>
+        <td>Seg–Sex, 18:00</td>
+        <td><code>shutdown /s /t 0</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout success">
+    <span class="callout-icon">✅</span>
+    <div><b>Dica:</b> Configure também o BIOS do mini-PC para ligar automaticamente quando a energia for restaurada. Procure por "Power On After AC Loss" ou "Restore on AC Power Loss" nas configurações BIOS e defina como "Power On".</div>
+  </div>
+</div>
+
+<!-- ── SEÇÃO 3: RASPBERRY PI ─────────────────────────────────────────── -->
+<div class="section" id="raspberry">
+  <h2>🍓 3. Configuração no Raspberry Pi</h2>
+
+  <h3>3.1 Pré-requisitos</h3>
+  <ul>
+    <li>Raspberry Pi 4 (2GB RAM ou mais)</li>
+    <li>Cartão microSD 32GB (Classe 10)</li>
+    <li>Raspberry Pi OS (64-bit, Bullseye ou Bookworm)</li>
+  </ul>
+
+  <h3>3.2 Instalação do Chromium em modo kiosk</h3>
+  <p>Execute os comandos abaixo no terminal do Raspberry Pi:</p>
+  <pre><code># Atualizar o sistema
+sudo apt update && sudo apt upgrade -y
+
+# Instalar Chromium e utilitários necessários
+sudo apt install -y chromium-browser unclutter xdotool
+
+# Desativar protetor de tela e suspensão de tela
+sudo raspi-config nonint do_blanking 1</code></pre>
+
+  <h3>3.3 Configurar autostart do kiosk</h3>
+  <pre><code># Criar arquivo de autostart
+mkdir -p ~/.config/autostart
+nano ~/.config/autostart/tv-kiosk.desktop</code></pre>
+
+  <p>Insira o seguinte conteúdo (substitua o IP):</p>
+  <pre><code>[Desktop Entry]
+Type=Application
+Name=TV Corporativa
+Exec=chromium-browser --kiosk --noerrdialogs --disable-infobars \
+  --autoplay-policy=no-user-gesture-required \
+  http://[IP-SERVIDOR]:8080/display.html
+X-GNOME-Autostart-enabled=true</code></pre>
+
+  <h3>3.4 Manter a tela sempre ligada</h3>
+  <pre><code># Criar script para manter tela ativa
+nano ~/no-sleep.sh</code></pre>
+  <pre><code>#!/bin/bash
+xset s off
+xset -dpms
+xset s noblank</code></pre>
+  <pre><code>chmod +x ~/no-sleep.sh
+
+# Adicionar ao autostart
+echo "Exec=bash /home/pi/no-sleep.sh" >> ~/.config/autostart/tv-kiosk.desktop</code></pre>
+
+  <div class="callout warning">
+    <span class="callout-icon">⚠️</span>
+    <div><b>Temperatura:</b> Em ambientes com alta temperatura (chão de fábrica), use um case com dissipador de calor ou ventilador para o Raspberry Pi. A temperatura ideal de operação é abaixo de 70°C.</div>
+  </div>
+</div>
+
+<!-- ── SEÇÃO 4: ANDROID ───────────────────────────────────────────────── -->
+<div class="section" id="android">
+  <h2>🤖 4. Configuração em Android Box / Smart TV</h2>
+
+  <h3>4.1 Instalar o Google Chrome</h3>
+  <ol class="steps">
+    <li><div class="step-num">1</div><div class="step-text">Abra a Google Play Store no dispositivo.</div></li>
+    <li><div class="step-num">2</div><div class="step-text">Pesquise "Google Chrome" e instale.</div></li>
+    <li><div class="step-num">3</div><div class="step-text">Abra o Chrome e acesse <code>http://[IP-SERVIDOR]:8080/display.html</code>.</div></li>
+    <li><div class="step-num">4</div><div class="step-text">Pressione <b>F11</b> ou ative o modo tela cheia pelo menu do Chrome.</div></li>
+  </ol>
+
+  <h3>4.2 Iniciar automaticamente</h3>
+  <p>Use um app de autostart para Android, como o <b>AutoStart – No Root</b> (disponível na Play Store), para abrir o Chrome automaticamente ao ligar o dispositivo.</p>
+
+  <div class="callout info">
+    <span class="callout-icon">💡</span>
+    <div><b>Smart TV Samsung/LG:</b> Use o navegador nativo da TV e configure-o como a "Home Screen" nas configurações de mídia da TV. Consulte o manual da sua TV para detalhes.</div>
+  </div>
+</div>
+
+<!-- ── SEÇÃO 5: REDE ──────────────────────────────────────────────────── -->
+<div class="section" id="rede">
+  <h2>🌐 5. Configuração de Rede</h2>
+
+  <h3>5.1 Topologia recomendada</h3>
+  <p>O servidor deve estar em um computador fixo e acessível para todos os players via rede local:</p>
+  <pre><code>
+  [Computador do Admin]
+        │  admin.html
+        │  server.py (:8080)
+        │
+  ──────┼────────────────── Rede Local (192.168.x.x)
+        │
+   ┌────┴──────────────────────────────────────┐
+   │                                           │
+[TV 1]                                      [TV 2..20]
+http://192.168.1.10:8080/display.html       (mesma URL)
+  </code></pre>
+
+  <h3>5.2 IP fixo para o servidor</h3>
+  <p>Configure IP fixo no computador que roda o <code>server.py</code> para que a URL das TVs não mude:</p>
+  <ol class="steps">
+    <li><div class="step-num">1</div><div class="step-text">Painel de Controle → Central de Rede → Alterar as configurações do adaptador.</div></li>
+    <li><div class="step-num">2</div><div class="step-text">Clique com botão direito na conexão → Propriedades → Protocolo TCP/IPv4.</div></li>
+    <li><div class="step-num">3</div><div class="step-text">Selecione "Usar o seguinte endereço IP" e defina um IP fixo (ex: <code>192.168.1.10</code>).</div></li>
+  </ol>
+
+  <div class="callout warning">
+    <span class="callout-icon">⚠️</span>
+    <div><b>Alternativa:</b> Configure uma reserva de DHCP no roteador para que o servidor sempre receba o mesmo IP. Consulte o suporte de TI para configurar isso no roteador da empresa.</div>
+  </div>
+</div>
+
+<!-- ── SEÇÃO 6: MANUTENÇÃO ────────────────────────────────────────────── -->
+<div class="section" id="manutencao">
+  <h2>🔧 6. Manutenção e Troubleshooting</h2>
+  <table>
+    <thead><tr><th>Problema</th><th>Causa provável</th><th>Solução</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Tela em branco ao ligar</td>
+        <td>Chrome não iniciou automaticamente</td>
+        <td>Verifique a pasta de Inicialização do Windows ou o arquivo autostart do RPi. Reinicie o dispositivo.</td>
+      </tr>
+      <tr>
+        <td>Conteúdo desatualizado</td>
+        <td>Servidor offline ou sem conexão</td>
+        <td>Verifique se o <code>server.py</code> está rodando. Abra <code>http://[IP]:8080</code> em outro computador para testar.</td>
+      </tr>
+      <tr>
+        <td>TV trava após horas</td>
+        <td>Memória RAM cheia (especialmente RPi)</td>
+        <td>Configure reinicialização automática diária (00:00) via Agendador de Tarefas ou cron.</td>
+      </tr>
+      <tr>
+        <td>Slides não passam</td>
+        <td>Erro no JavaScript</td>
+        <td>Pressione F12 no Chrome → Console → copie o erro e contate o TI.</td>
+      </tr>
+      <tr>
+        <td>Imagem distorcida</td>
+        <td>Resolução incorreta</td>
+        <td>Configure a resolução do PC/RPi para 1920×1080 (Full HD) nas configurações de vídeo.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Contato de suporte</h3>
+  <p>Em caso de problemas não listados acima, contate a equipe de TI pelo e-mail <b>sistemas@grupoflexivel.com.br</b> ou pelo ramal interno.</p>
+</div>
+
+</div><!-- /page -->
+</body>
+</html>

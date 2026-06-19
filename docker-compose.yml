@@ -1,0 +1,13 @@
+services:
+  tv-corporativa:
+    build: .
+    container_name: tv-corporativa
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persistem entre reinícios: conteúdo, usuários/senha, sessão e uploads
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    environment:
+      - TV_PORT=8080
+    restart: unless-stopped

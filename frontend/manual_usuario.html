@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual do Usuário – TV Corporativa</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --blue:#1b3a5c; --blue-light:#2e75b6; --accent:#f4b942;
+  --green:#4caf50; --red:#e06c75; --text:#2d3a4a; --dim:#7a8fa6;
+  --bg:#f4f6fa; --white:#fff;
+}
+body { font-family:'Segoe UI',Arial,sans-serif; background:var(--bg); color:var(--text); }
+
+#layout { display:flex; min-height:100vh; }
+#sidebar {
+  width:260px; background:var(--blue); color:#fff;
+  position:sticky; top:0; height:100vh; overflow-y:auto; flex-shrink:0;
+}
+#content { flex:1; max-width:860px; padding:40px 48px 60px; }
+
+.sb-logo { padding:28px 24px 18px; border-bottom:1px solid rgba(255,255,255,.1); }
+.sb-logo .name { font-size:16px; font-weight:700; }
+.sb-logo .sub  { font-size:11px; color:#90a8bf; letter-spacing:1.5px; text-transform:uppercase; margin-top:3px; }
+.sb-nav { padding:14px 0; }
+.sb-group { padding:0 16px; margin-bottom:6px; }
+.sb-label { font-size:10px; color:#6a7f96; text-transform:uppercase; letter-spacing:2px; margin-bottom:4px; padding:0 6px; }
+.sb-link { display:block; padding:8px 12px; color:#c8d8e8; font-size:13px; text-decoration:none; border-radius:6px; transition:background .2s; }
+.sb-link:hover { background:rgba(46,117,182,.35); color:#fff; }
+.sb-footer { padding:16px 24px; font-size:11px; color:#6a7f96; border-top:1px solid rgba(255,255,255,.08); }
+
+h1 { font-size:32px; font-weight:700; color:var(--blue); margin-bottom:8px; }
+h2 { font-size:22px; font-weight:600; color:var(--blue); margin:40px 0 14px; padding-top:8px; border-top:2px solid #dde5f0; }
+h3 { font-size:16px; font-weight:600; color:var(--text); margin:22px 0 10px; }
+p  { font-size:15px; line-height:1.75; color:var(--text); margin-bottom:12px; }
+ul,ol { padding-left:22px; margin-bottom:14px; }
+li { font-size:15px; line-height:1.75; margin-bottom:4px; }
+code { background:#edf2fb; color:#1a56db; padding:2px 7px; border-radius:4px; font-size:13.5px; font-family:monospace; }
+pre  { background:#1a2535; color:#d4e6f5; padding:18px 22px; border-radius:10px; overflow-x:auto; margin:14px 0; font-size:13px; line-height:1.7; }
+a { color:var(--blue-light); }
+
+.tip, .warn, .info {
+  display:flex; gap:12px; align-items:flex-start;
+  border-radius:10px; padding:14px 18px; margin:16px 0; font-size:14px; line-height:1.65;
+}
+.tip  { background:#e8f6ee; border-left:4px solid var(--green); }
+.warn { background:#fff4e5; border-left:4px solid var(--accent); }
+.info { background:#edf2fb; border-left:4px solid var(--blue-light); }
+.tip-icon,.warn-icon,.info-icon { font-size:20px; flex-shrink:0; margin-top:1px; }
+
+.steps { margin:12px 0 18px; }
+.step  { display:flex; gap:14px; margin-bottom:14px; }
+.step-num {
+  width:30px; height:30px; background:var(--blue-light); color:#fff;
+  border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:14px; flex-shrink:0; margin-top:2px;
+}
+.step-body { flex:1; }
+
+.arch { background:var(--white); border:1px solid #dde5f0; border-radius:12px; padding:24px 28px; margin:18px 0; font-size:14px; }
+.arch-row  { display:flex; align-items:center; gap:12px; margin:8px 0; flex-wrap:wrap; }
+.arch-box  { border-radius:8px; padding:8px 16px; font-weight:600; font-size:13px; display:flex; align-items:center; gap:8px; }
+.arch-box.tv    { background:#edf2fb; color:#1b3a5c; }
+.arch-box.grade { background:#e8f6ee; color:#1b5e20; }
+.arch-box.rod   { background:#fff8e5; color:#7b5000; }
+.arch-arrow { font-size:18px; color:var(--dim); }
+
+table { width:100%; border-collapse:collapse; margin:12px 0 18px; font-size:14px; }
+th { background:#f0f4f8; padding:10px 14px; text-align:left; font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:1px; }
+td { padding:10px 14px; border-bottom:1px solid #edf1f7; vertical-align:top; }
+tr:last-child td { border:none; }
+
+@media(max-width:860px) {
+  #sidebar { display:none; }
+  #content { padding:28px 22px 40px; }
+}
+</style>
+</head>
+<body>
+<div id="layout">
+
+<nav id="sidebar">
+  <div class="sb-logo">
+    <div class="name">TV Corporativa</div>
+    <div class="sub">Manual do Usuário v2</div>
+  </div>
+  <div class="sb-nav">
+    <div class="sb-group">
+      <div class="sb-label">Início</div>
+      <a class="sb-link" href="#visao-geral">Visão Geral</a>
+      <a class="sb-link" href="#arquitetura">Arquitetura</a>
+      <a class="sb-link" href="#acesso">Como Acessar</a>
+    </div>
+    <div class="sb-group">
+      <div class="sb-label">Configuração</div>
+      <a class="sb-link" href="#tvs">TVs</a>
+      <a class="sb-link" href="#grades">Grades de Programação</a>
+      <a class="sb-link" href="#rodapes">Rodapés</a>
+      <a class="sb-link" href="#vincular">Vincular TV → Grade e Rodapé</a>
+    </div>
+    <div class="sb-group">
+      <div class="sb-label">Conteúdo dos Slides</div>
+      <a class="sb-link" href="#avisos">Avisos</a>
+      <a class="sb-link" href="#kpi">Indicadores KPI</a>
+      <a class="sb-link" href="#agenda">Agenda</a>
+      <a class="sb-link" href="#midia">Mídia</a>
+      <a class="sb-link" href="#galeria">Galeria</a>
+    </div>
+    <div class="sb-group">
+      <div class="sb-label">Operação</div>
+      <a class="sb-link" href="#exibicao">Exibição nas TVs</a>
+      <a class="sb-link" href="#servidor">Servidor Local</a>
+      <a class="sb-link" href="#duracao">Duração dos Slides</a>
+      <a class="sb-link" href="#backup">Backup</a>
+    </div>
+  </div>
+  <div class="sb-footer">Grupo Flexível © 2026</div>
+</nav>
+
+<main id="content">
+
+<h1>📺 TV Corporativa</h1>
+<p style="font-size:17px;color:var(--dim);margin-bottom:32px;">Manual do Usuário – Versão 2.0</p>
+
+<h2 id="visao-geral">Visão Geral</h2>
+<p>O sistema de TV Corporativa exibe informações institucionais — avisos, indicadores, agenda, imagens e vídeos — em telas físicas distribuídas pela empresa. Cada tela pode exibir conteúdo independente.</p>
+<p>O sistema é composto por três arquivos:</p>
+<ul>
+  <li><strong>admin.html</strong> — painel de administração</li>
+  <li><strong>display.html</strong> — tela de exibição aberta nas TVs</li>
+  <li><strong>server.py</strong> — servidor local para sincronização em rede (opcional)</li>
+</ul>
+
+<h2 id="arquitetura">Arquitetura do Sistema</h2>
+<p>O sistema organiza o conteúdo em três entidades que você cria e vincula entre si:</p>
+
+<div class="arch">
+  <div class="arch-row">
+    <div class="arch-box tv">📺 TV</div>
+    <div class="arch-arrow">→ vinculada a →</div>
+    <div class="arch-box grade">📋 Grade de Programação</div>
+    <div class="arch-arrow">+</div>
+    <div class="arch-box rod">📢 Rodapé</div>
+  </div>
+  <div style="font-size:13px;color:var(--dim);margin-top:12px;line-height:1.6;">
+    Cada <b>TV</b> possui um link único de acesso (<code>display.html?tv=slug</code>). Ela exibe os slides da <b>Grade</b> vinculada e as mensagens do <b>Rodapé</b> vinculado. Grades e Rodapés podem ser compartilhados entre múltiplas TVs ou ser exclusivos de cada uma.
+  </div>
+</div>
+
+<table>
+  <thead><tr><th>Entidade</th><th>O que é</th><th>Exemplo</th></tr></thead>
+  <tbody>
+    <tr><td><b>📺 TV</b></td><td>Representa uma tela física. Gera um link único de acesso.</td><td>TV Recepção, TV Refeitório</td></tr>
+    <tr><td><b>📋 Grade</b></td><td>Lista de slides exibidos em sequência. Pode ser usada por várias TVs.</td><td>Grade Principal, Grade Fábrica</td></tr>
+    <tr><td><b>📢 Rodapé</b></td><td>Ticker de mensagens no rodapé da tela. Independente da grade.</td><td>Rodapé Padrão, Rodapé Urgências</td></tr>
+  </tbody>
+</table>
+
+<h2 id="acesso">Como Acessar o Admin</h2>
+<p>Abra o arquivo <code>admin.html</code> diretamente no navegador ou pelo servidor:</p>
+<pre>http://[IP_DO_COMPUTADOR]:8080/admin.html</pre>
+
+<h2 id="tvs">TVs</h2>
+<p>Uma <strong>TV</strong> representa uma tela física. Ao criá-la, o sistema gera um link único de acesso — é esse link que você abre no navegador da TV.</p>
+
+<h3>Criar uma TV</h3>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body">No menu lateral, clique em <b>📺 TVs</b>.</div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body">Clique em <b>+ Nova TV</b>.</div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body">Informe o nome (ex: "TV Recepção"). O <b>slug</b> é gerado automaticamente e forma o link único.</div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body">Selecione a <b>Grade de Programação</b> e o <b>Rodapé</b> que esta TV irá exibir.</div></div>
+  <div class="step"><div class="step-num">5</div><div class="step-body">Clique em <b>Salvar TV</b>. O link aparece na coluna "Link".</div></div>
+</div>
+
+<h3>Link de Acesso</h3>
+<p>Cada TV recebe um link no formato:</p>
+<pre>display.html?tv=recepcao
+http://[IP]:8080/display.html?tv=recepcao</pre>
+
+<div class="warn">
+  <span class="warn-icon">⚠️</span>
+  <span>O <b>slug</b> faz parte do link. Evite alterar o slug depois que as TVs estiverem em operação.</span>
+</div>
+
+<h2 id="grades">Grades de Programação</h2>
+<p>Uma <strong>Grade</strong> é uma lista ordenada de slides em loop. Você pode ter múltiplas grades e vincular cada uma às TVs desejadas.</p>
+
+<h3>Criar uma Grade</h3>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body">Clique em <b>📋 Grades</b> no menu lateral.</div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body">Clique em <b>+ Nova Grade</b>, informe o nome e a duração padrão dos slides.</div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body">Clique em <b>🎞️ Editar Conteúdo</b> para adicionar slides a essa grade.</div></div>
+</div>
+
+<h3>Grade Ativa</h3>
+<p>Ao clicar em "Editar Conteúdo", aquela grade é selecionada como ativa para edição. Um indicador amarelo no menu lateral mostra qual grade está sendo editada. Todas as alterações em Avisos, KPI, Agenda, Mídia e Galeria afetam somente a grade ativa. Para trocar de grade dentro de uma seção, use o seletor "Trocar" na barra amarela no topo de cada seção.</p>
+
+<h2 id="rodapes">Rodapés</h2>
+<p>Um <strong>Rodapé</strong> é um ticker de texto que rola no rodapé da tela. Cada rodapé tem suas próprias mensagens e velocidade de rolagem.</p>
+
+<h3>Criar um Rodapé</h3>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body">Clique em <b>📢 Rodapés</b> no menu lateral.</div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body">Clique em <b>+ Novo Rodapé</b>, informe o nome, velocidade e adicione as mensagens.</div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body">Clique em <b>Salvar Rodapé</b>.</div></div>
+</div>
+
+<h2 id="vincular">Vincular TV → Grade e Rodapé</h2>
+<p>A vinculação é feita no cadastro de cada TV. Ao criar ou editar uma TV, selecione nos campos "Grade de Programação" e "Rodapé" quais entidades ela deve usar. Ao salvar, a TV passará a exibir o conteúdo selecionado imediatamente.</p>
+
+<div class="tip">
+  <span class="tip-icon">💡</span>
+  <span>Você pode usar a mesma grade em várias TVs e ao mesmo tempo ter rodapés diferentes em cada uma.</span>
+</div>
+
+<h2 id="avisos">Slides de Avisos / Comunicados</h2>
+<p>Exibe um comunicado em destaque com ícone, badge de categoria, título, texto e autor. Campos disponíveis: Título, Badge/Categoria, Ícone (emoji), Mensagem, Autor/Setor e Duração individual (opcional).</p>
+
+<h2 id="kpi">Slides de Indicadores (KPI)</h2>
+<p>Exibe até 6 cartões de indicadores com valor, unidade, tendência e cor. Para editar: vá em <b>📊 KPI</b>, altere os valores nos campos e clique em <b>💾 Salvar Indicadores</b>.</p>
+
+<h2 id="agenda">Slides de Agenda</h2>
+<p>Exibe eventos corporativos com data, horário, local e destaque visual. Clique em <b>+ Novo Evento</b>, preencha os campos e use "Destaque / Urgente" para eventos que devem se destacar em amarelo.</p>
+
+<h2 id="midia">Slides de Mídia (Imagem / Vídeo)</h2>
+<p>Exibe imagens ou vídeos a partir de uma URL. O sistema detecta automaticamente o tipo.</p>
+
+<table>
+  <thead><tr><th>Tipo</th><th>Comportamento</th><th>Duração</th></tr></thead>
+  <tbody>
+    <tr><td><b>Imagem</b></td><td>Exibida pelo tempo definido</td><td>Campo duração ou padrão da grade</td></tr>
+    <tr><td><b>Vídeo</b> (sem duração forçada)</td><td>Reproduz até o fim e avança</td><td>Tempo natural do vídeo (máx. 10 min)</td></tr>
+    <tr><td><b>Vídeo</b> (com duração definida)</td><td>Para e avança no tempo definido</td><td>Conforme campo "Duração"</td></tr>
+  </tbody>
+</table>
+
+<h2 id="galeria">Slides de Galeria de Imagens</h2>
+<p>Exibe múltiplas imagens em sequência com crossfade suave dentro de um único slide. Campos: Título, Intervalo entre imagens (segundos por imagem), Duração total do slide e lista de URLs de imagens com legendas opcionais.</p>
+
+<h2 id="exibicao">Exibição nas TVs</h2>
+<p>Cada TV deve abrir o seguinte link em modo kiosk:</p>
+<pre>display.html?tv=SLUG_DA_TV</pre>
+<p>Para abrir automaticamente em tela cheia:</p>
+<pre>chrome --kiosk "http://[IP]:8080/display.html?tv=recepcao"</pre>
+
+<p>Recursos automáticos da tela:</p>
+<ul>
+  <li>Sincroniza com o admin a cada 60 segundos</li>
+  <li>Recarrega a cada 4 horas (limpeza de memória)</li>
+  <li>Watchdog recarrega se a exibição travar por mais de 2 minutos</li>
+  <li>Contador regressivo no canto superior direito (tempo restante do slide)</li>
+  <li>Barra de progresso amarela no topo</li>
+  <li>Ponto verde/vermelho: status de conexão com o servidor</li>
+</ul>
+
+<h2 id="servidor">Servidor Local (server.py)</h2>
+<p>O servidor permite que todas as TVs da rede recebam atualizações automáticas.</p>
+<pre>python server.py</pre>
+<p>Acesse em <code>http://[IP_DA_MAQUINA]:8080</code>. Sem o servidor, o sistema funciona em modo local (admin e display precisam estar no mesmo navegador).</p>
+
+<h2 id="duracao">Duração dos Slides</h2>
+<table>
+  <thead><tr><th>Nível</th><th>Onde configurar</th><th>Prioridade</th></tr></thead>
+  <tbody>
+    <tr><td>Duração do slide individual</td><td>Campo "Duração" em cada slide</td><td>Mais alta</td></tr>
+    <tr><td>Duração padrão da grade</td><td>Campo ao criar/editar a grade</td><td>Média</td></tr>
+    <tr><td>Duração padrão global</td><td>Configurações → Duração padrão</td><td>Mais baixa</td></tr>
+  </tbody>
+</table>
+<div class="info">
+  <span class="info-icon">ℹ️</span>
+  <span>Vídeos sem duração forçada avançam ao término natural, ignorando qualquer duração configurada.</span>
+</div>
+
+<h2 id="backup">Backup e Restauração</h2>
+<p>O conteúdo é salvo no navegador (localStorage). Para garantir a persistência:</p>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body">Acesse <b>⚙️ Configurações</b> no menu lateral.</div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body">Clique em <b>⬇️ Exportar JSON</b> para baixar um backup completo.</div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body">Para restaurar, use <b>⬆️ Importar JSON</b> e selecione o arquivo exportado.</div></div>
+</div>
+<div class="warn">
+  <span class="warn-icon">⚠️</span>
+  <span>Limpar os dados do navegador apaga o conteúdo salvo. Exporte periodicamente como precaução.</span>
+</div>
+
+<hr style="margin:40px 0;border:none;border-top:1px solid #dde5f0;">
+<p style="font-size:13px;color:var(--dim);text-align:center;">TV Corporativa v2.0 · Grupo Flexível © 2026</p>
+
+</main>
+</div>
+</body>
+</html>
