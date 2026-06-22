@@ -228,6 +228,24 @@
   .slide-media iframe { width: 100%; height: 100%; border: none; }
   .slide-media .yt-wrap { width: 100%; height: 100%; }
   .slide-media .yt-wrap iframe { width: 100%; height: 100%; }
+
+  /* ── NOTÍCIAS (uma por vez, imagem + manchete + fonte) ── */
+  .slide-news { padding: 0; }
+  .news-stage { position: absolute; inset: 0; }
+  .news-card { position: absolute; inset: 0; opacity: 0; transition: opacity .6s ease; }
+  .news-card.active { opacity: 1; }
+  .news-img {
+    position: absolute; inset: 0; background-size: cover; background-position: center;
+    background-color: #16324f; display: flex; align-items: center; justify-content: center;
+    font-size: 110px; color: rgba(255,255,255,.22);
+  }
+  .news-info {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 6vh 6vw 5vh;
+    background: linear-gradient(180deg, rgba(10,24,22,0), rgba(10,24,22,.55) 40%, rgba(10,24,22,.95));
+  }
+  .news-source { font-size: 20px; color: var(--brand-lime); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .news-headline { font-size: 42px; font-weight: 700; color: #fff; line-height: 1.2; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+  .news-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--text-dim); }
   .media-caption {
     position: absolute; bottom: 20px; left: 0; right: 0;
     text-align: center; font-size: 18px;
@@ -462,6 +480,18 @@ function buildCalendarSlide(s) {
     </div>`;
 }
 
+function buildNewsSlide(s) {
+  const interval = (s.duration && s.count) ? Math.max(4, Math.floor(s.duration / s.count)) : 7;
+  return `
+    <div class="slide slide-news" id="slide-${s.id}">
+      <div class="news-stage" id="news-${s.id}"
+           data-cat="${s.category || 'TOP'}" data-count="${s.count || 6}"
+           data-interval="${interval}" data-label="${s.label || 'Notícias'}">
+        <div class="news-loading">Carregando notícias...</div>
+      </div>
+    </div>`;
+}
+
 function youtubeId(url) {
   if (!url) return null;
   const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
@@ -562,6 +592,7 @@ function init() {
     else if (s.type === 'calendar')     html = buildCalendarSlide(s);
     else if (s.type === 'media')        html = buildMediaSlide(s);
     else if (s.type === 'gallery')      html = buildGallerySlide(s);
+    else if (s.type === 'news')         html = buildNewsSlide(s);
     container.insertAdjacentHTML('beforeend', html);
 
     const dot = document.createElement('div');
@@ -570,6 +601,7 @@ function init() {
     dotsEl.appendChild(dot);
   });
 
+  prefetchNews();   // pré-carrega as notícias dos slides
   goTo(0);
 }
 
@@ -668,6 +700,7 @@ function goTo(idx) {
       startGallery(curSlide.id, curSlide.image_interval || 4);
     }
     if (curSlide?.type === 'media' && youtubeId(curSlide.url)) playYouTubeFor(curSlide);
+    if (curSlide?.type === 'news') { const st = document.getElementById('news-' + curSlide.id); if (st) advanceNews(st); }
   }
   dots.forEach((d,i) => d.classList.toggle('active', i===current));
 
@@ -904,6 +937,68 @@ function refreshWeather() {
 }
 // Clima é cacheado no servidor (~3h); o display reconsulta de hora em hora.
 setInterval(refreshWeather, 60 * 60 * 1000);
+
+// ── Notícias: 1 por vez, e a cada volta da grade mostra a PRÓXIMA ──
+const newsData = {};    // stageId -> { items, ts }
+const newsCursor = {};  // stageId -> próximo índice a exibir
+
+function _renderNewsCard(stage, n, label) {
+  stage.innerHTML = `
+    <div class="news-card active">
+      <div class="news-img"${n.image ? ` style="background-image:url('${n.image.replace(/'/g, '%27')}')"` : ''}>${n.image ? '' : '📰'}</div>
+      <div class="news-info">
+        <div class="news-source">${n.source ? n.source + ' · ' : ''}${label}</div>
+        <div class="news-headline">${n.title}</div>
+      </div>
+    </div>`;
+}
+
+// Pré-carrega as notícias (sem avançar), para a 1ª exibição ser instantânea
+function prefetchNews() {
+  document.querySelectorAll('.news-stage').forEach(async stage => {
+    const cat = stage.dataset.cat || 'TOP';
+    try {
+      const r = await fetch('/api/news?category=' + encodeURIComponent(cat), { cache: 'no-store' });
+      const data = await r.json();
+      newsData[stage.id] = { items: (data && data.ok && data.items) ? data.items : [], ts: Date.now() };
+      if (newsCursor[stage.id] === undefined) newsCursor[stage.id] = 0;
+    } catch (e) {}
+  });
+}
+
+// Chamado toda vez que o slide de notícia entra em cena → mostra a próxima
+async function advanceNews(stage) {
+  const id = stage.id;
+  const cat = stage.dataset.cat || 'TOP';
+  const label = stage.dataset.label || 'Notícias';
+  const count = parseInt(stage.dataset.count) || 6;
+  const now = Date.now();
+  let entry = newsData[id];
+  let cursor = newsCursor[id] || 0;
+
+  const poolLen = entry ? Math.min(count, (entry.items || []).filter(n => n.image).length || (entry.items || []).length) : 0;
+  const stale = !entry || (now - entry.ts > 15 * 60 * 1000);
+  const exhausted = entry && cursor >= poolLen;
+  if (stale || exhausted) {  // recarrega ao esgotar a lista ou após 15 min (notícias frescas)
+    try {
+      const r = await fetch('/api/news?category=' + encodeURIComponent(cat), { cache: 'no-store' });
+      const data = await r.json();
+      entry = { items: (data && data.ok && data.items) ? data.items : [], ts: now };
+    } catch (e) { entry = entry || { items: [], ts: now }; }
+    newsData[id] = entry;
+    cursor = 0;
+  }
+
+  // Prefere notícias COM imagem; se não houver, usa todas
+  let pool = (entry.items || []).filter(n => n.image);
+  if (pool.length < 1) pool = (entry.items || []);
+  pool = pool.slice(0, count);
+
+  if (!pool.length) { stage.innerHTML = '<div class="news-loading">Notícias indisponíveis no momento.</div>'; return; }
+  const n = pool[cursor % pool.length];
+  newsCursor[id] = cursor + 1;   // próxima volta da grade mostra a seguinte
+  _renderNewsCard(stage, n, label);
+}
 
 // ═══════════════════════════════════════════════════════
 // ATUALIZAÇÃO AUTOMÁTICA (ouve mudanças do admin)

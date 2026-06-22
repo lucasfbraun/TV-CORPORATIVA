@@ -4,6 +4,7 @@
 
 # Segredos / sessão
 secret.key
+.env
 
 # Python
 __pycache__/

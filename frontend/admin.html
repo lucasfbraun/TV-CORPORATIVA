@@ -121,6 +121,7 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
 .type-badge.calendar     { background:#fff4e5;color:#a06000; }
 .type-badge.media        { background:#f3e8fd;color:#6a2a9f; }
 .type-badge.gallery      { background:#fde8f3;color:#9f2a6a; }
+.type-badge.news         { background:#e6eefb;color:#2e5b8a; }
 
 .status-dot { width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px; }
 .status-dot.on  { background:var(--green); }
@@ -532,6 +533,7 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
           <button class="btn btn-outline btn-sm" onclick="quickAdd('media')">🖼️ Mídia</button>
           <button class="btn btn-outline btn-sm" onclick="quickAdd('gallery')">🗂️ Galeria</button>
           <button class="btn btn-outline btn-sm" onclick="quickAddFromLibrary()">📁 Biblioteca</button>
+          <button class="btn btn-outline btn-sm" onclick="openNewsModal()">📰 Notícias</button>
           <button class="btn btn-outline btn-sm" onclick="quickAdd('calendar')">📅 Evento</button>
         </div>
         <div class="timeline-wrap" id="tl-cards"
@@ -647,6 +649,51 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
 </div><!-- /app -->
 
 <!-- ═══ MODAIS ═══════════════════════════════════════════ -->
+
+<!-- Modal: Notícias -->
+<div class="modal-overlay" id="modal-news">
+  <div class="modal">
+    <div class="modal-title">
+      <span>📰</span> <span id="news-modal-title">Notícias</span>
+      <button class="modal-close" onclick="closeModal('modal-news')">×</button>
+    </div>
+    <input type="hidden" id="news-edit-id">
+    <div class="form-group">
+      <label class="form-label">Categoria</label>
+      <select class="form-select" id="news-category">
+        <option value="TOP">Principais (geral)</option>
+        <option value="NATION">Brasil</option>
+        <option value="WORLD">Mundo</option>
+        <option value="BUSINESS">Economia</option>
+        <option value="TECHNOLOGY">Tecnologia</option>
+        <option value="SPORTS">Esportes</option>
+        <option value="SCIENCE">Ciência</option>
+        <option value="HEALTH">Saúde</option>
+        <option value="ENTERTAINMENT">Entretenimento</option>
+      </select>
+      <small style="color:var(--dim);font-size:11px;">As notícias são buscadas automaticamente — sempre as mais recentes.</small>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Qtde de manchetes</label>
+        <input class="form-input" type="number" id="news-count" min="3" max="10" value="6">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Duração (s)</label>
+        <input class="form-input" type="number" id="news-duration" min="5" max="120" placeholder="Padrão da grade">
+      </div>
+    </div>
+    <small style="display:block;color:var(--dim);font-size:11px;margin:-6px 0 12px;">💡 Mostra 1 notícia por vez; a cada volta da grade aparece a próxima. "Qtde" = quantas notícias diferentes antes de repetir (e buscar novas). A duração controla por quanto tempo cada notícia fica na tela.</small>
+    <div class="toggle-row">
+      <div class="toggle on" id="news-active-toggle" onclick="this.classList.toggle('on')"></div>
+      <span class="toggle-label">Slide ativo</span>
+    </div>
+    <div class="action-row-end">
+      <button class="btn btn-outline" onclick="closeModal('modal-news')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveNews()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal: Trocar minha senha -->
 <div class="modal-overlay" id="modal-changepass">
@@ -2122,6 +2169,37 @@ function saveMedia() {
   save(DATA); renderAll(); closeModal('modal-media'); toast('Mídia salva!');
 }
 
+// ── Notícias ──────────────────────────────────────────────
+const NEWS_LABELS = {
+  TOP:'Principais', NATION:'Brasil', WORLD:'Mundo', BUSINESS:'Economia',
+  TECHNOLOGY:'Tecnologia', SPORTS:'Esportes', SCIENCE:'Ciência', HEALTH:'Saúde', ENTERTAINMENT:'Entretenimento'
+};
+function openNewsModal(id=null) {
+  document.getElementById('news-edit-id').value = id||'';
+  const s = id ? activeSlides().find(x => x.id === id) : null;
+  document.getElementById('news-category').value = s?.category || 'TOP';
+  document.getElementById('news-count').value    = s?.count || 6;
+  document.getElementById('news-duration').value = s?.duration || '';
+  document.getElementById('news-active-toggle').classList.toggle('on', s ? !!s.active : true);
+  document.getElementById('news-modal-title').textContent = id ? 'Editar Notícias' : 'Notícias';
+  openModal('modal-news');
+}
+function saveNews() {
+  const id  = document.getElementById('news-edit-id').value;
+  const cat = document.getElementById('news-category').value;
+  const obj = {
+    id: id ? parseInt(id) : nextSlideId(),
+    type: 'news',
+    active: document.getElementById('news-active-toggle').classList.contains('on'),
+    category: cat,
+    label: NEWS_LABELS[cat] || 'Notícias',
+    count: parseInt(document.getElementById('news-count').value) || 6,
+    duration: parseInt(document.getElementById('news-duration').value) || null,
+  };
+  pushOrUpdateSlide(obj, id);
+  save(DATA); renderAll(); closeModal('modal-news'); toast('Notícias salvas!');
+}
+
 // ── Galeria ───────────────────────────────────────────────
 function addGalleryImageRow(url='', caption='') {
   const list = document.getElementById('gallery-images-list');
@@ -2248,7 +2326,7 @@ function renderTimeline() {
   const legendEl  = document.getElementById('tl-legend');
   if (!barEl || !cardsEl) return;
 
-  const labels = {announcement:'Aviso',kpi:'KPI',calendar:'Agenda',media:'Mídia',gallery:'Galeria'};
+  const labels = {announcement:'Aviso',kpi:'KPI',calendar:'Agenda',media:'Mídia',gallery:'Galeria',news:'Notícias'};
   const durs   = slides.map(s => (s.duration && s.duration > 0) ? s.duration : defDur);
   const total  = durs.reduce((a,b) => a+b, 0) || 1;
 
@@ -2337,6 +2415,11 @@ function slidePreview(s) {
       <span style="font-size:32px;">📅</span>
       <span style="font-size:10px;">${(s.events||[]).length} evento(s)</span></div>`;
   }
+  if (s.type === 'news') {
+    return `<div class="gp-ann" style="background:linear-gradient(135deg,#2e5b8a,#16324f);">
+      <span style="font-size:32px;">📰</span>
+      <span style="font-size:10px;">${s.label || 'Notícias'}</span></div>`;
+  }
   return `<span class="gp-ico">🎬</span>`;
 }
 
@@ -2355,6 +2438,7 @@ function editSlide(id) {
   if (s.type === 'announcement') openAnnModal(id);
   else if (s.type === 'media') openMediaModal(id);
   else if (s.type === 'gallery') openGalleryModal(id);
+  else if (s.type === 'news') openNewsModal(id);
   else if (s.type === 'calendar') { showPanel('calendar'); toast('Gerencie os eventos da agenda. Volte em "Montar Grade".'); }
 }
 
