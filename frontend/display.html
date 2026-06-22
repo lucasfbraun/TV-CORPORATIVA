@@ -218,12 +218,12 @@
     background: #000;
   }
   .slide-media img {
-    max-width: 100%; max-height: 100%;
-    object-fit: contain;
+    width: 100%; height: 100%;
+    object-fit: cover;   /* preenche a tela inteira, sem barras */
   }
   .slide-media video {
-    max-width: 100%; max-height: 100%;
-    object-fit: contain;
+    width: 100%; height: 100%;
+    object-fit: cover;   /* preenche a tela inteira, sem barras */
   }
   .slide-media iframe { width: 100%; height: 100%; border: none; }
   .slide-media .yt-wrap { width: 100%; height: 100%; }
@@ -269,8 +269,8 @@
   }
   .gallery-item.active { opacity: 1; }
   .gallery-item img {
-    max-width: 100%; max-height: 100%;
-    object-fit: contain;
+    width: 100%; height: 100%;
+    object-fit: cover;   /* preenche a tela inteira, sem barras */
   }
   .gallery-title {
     position: absolute; top: 20px; left: 0; right: 0;
@@ -576,6 +576,7 @@ function getContent() { return _resolvedContent || resolveContent(); }
 function init() {
   _resolvedContent = resolveContent();
   const content = _resolvedContent;
+  newsBlockGlobal = (content.config && content.config.news_blocklist) || '';
   slides = (content.slides || []).filter(s => s.active && s.type !== 'kpi');
   const container = document.getElementById('slides-container');
   const dotsEl = document.getElementById('dots');
@@ -941,6 +942,7 @@ setInterval(refreshWeather, 60 * 60 * 1000);
 // ── Notícias: 1 por vez, e a cada volta da grade mostra a PRÓXIMA ──
 const newsData = {};    // stageId -> { items, ts }
 const newsCursor = {};  // stageId -> próximo índice a exibir
+let newsBlockGlobal = '';  // lista global de palavras proibidas (Configurações)
 
 function _renderNewsCard(stage, n, label) {
   stage.innerHTML = `
@@ -966,20 +968,39 @@ function prefetchNews() {
   });
 }
 
+// Remove notícias que contenham qualquer palavra proibida (no título ou fonte)
+function filterBlocked(items, blockStr) {
+  const words = (blockStr || '').split(',').map(w => w.trim().toLowerCase()).filter(Boolean);
+  if (!words.length) return items;
+  return items.filter(n => {
+    const text = ((n.title || '') + ' ' + (n.source || '')).toLowerCase();
+    return !words.some(w => text.includes(w));
+  });
+}
+
 // Chamado toda vez que o slide de notícia entra em cena → mostra a próxima
 async function advanceNews(stage) {
   const id = stage.id;
   const cat = stage.dataset.cat || 'TOP';
   const label = stage.dataset.label || 'Notícias';
   const count = parseInt(stage.dataset.count) || 6;
+  const block = newsBlockGlobal;
   const now = Date.now();
   let entry = newsData[id];
   let cursor = newsCursor[id] || 0;
 
-  const poolLen = entry ? Math.min(count, (entry.items || []).filter(n => n.image).length || (entry.items || []).length) : 0;
-  const stale = !entry || (now - entry.ts > 15 * 60 * 1000);
-  const exhausted = entry && cursor >= poolLen;
-  if (stale || exhausted) {  // recarrega ao esgotar a lista ou após 15 min (notícias frescas)
+  // Monta a lista exibível: aplica palavras proibidas, prefere as com imagem, limita à quantidade
+  function buildPool(e) {
+    let arr = filterBlocked(e ? (e.items || []) : [], block);
+    const withImg = arr.filter(n => n.image);
+    if (withImg.length >= 1) arr = withImg;
+    return arr.slice(0, count);
+  }
+
+  const stale = !entry || (now - entry.ts > 30 * 60 * 1000);
+  let pool = buildPool(entry);
+  const exhausted = entry && cursor >= pool.length;
+  if (stale || exhausted) {  // recarrega ao esgotar a lista ou após 30 min (notícias frescas)
     try {
       const r = await fetch('/api/news?category=' + encodeURIComponent(cat), { cache: 'no-store' });
       const data = await r.json();
@@ -987,14 +1008,10 @@ async function advanceNews(stage) {
     } catch (e) { entry = entry || { items: [], ts: now }; }
     newsData[id] = entry;
     cursor = 0;
+    pool = buildPool(entry);
   }
 
-  // Prefere notícias COM imagem; se não houver, usa todas
-  let pool = (entry.items || []).filter(n => n.image);
-  if (pool.length < 1) pool = (entry.items || []);
-  pool = pool.slice(0, count);
-
-  if (!pool.length) { stage.innerHTML = '<div class="news-loading">Notícias indisponíveis no momento.</div>'; return; }
+  if (!pool.length) { stage.innerHTML = '<div class="news-loading">Sem notícias disponíveis no momento.</div>'; return; }
   const n = pool[cursor % pool.length];
   newsCursor[id] = cursor + 1;   // próxima volta da grade mostra a seguinte
   _renderNewsCard(stage, n, label);

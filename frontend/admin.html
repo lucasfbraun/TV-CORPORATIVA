@@ -620,6 +620,11 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
             <input class="form-input" type="number" id="cfg-slide-dur" min="5" max="60" value="12">
           </div>
         </div>
+        <div class="form-group">
+          <label class="form-label">🚫 Palavras proibidas nas notícias (global, separadas por vírgula)</label>
+          <input class="form-input" id="cfg-news-block" placeholder="ex: tragédia, morte, acidente, facção">
+          <small style="color:var(--dim);font-size:11px;">Vale para TODOS os slides de notícia. Notícias cujo título ou fonte contenha qualquer uma dessas palavras não serão exibidas.</small>
+        </div>
         <div class="action-row-end">
           <button class="btn btn-primary" onclick="saveConfig()">💾 Salvar Configurações</button>
         </div>
@@ -1509,8 +1514,10 @@ function renderConfig() {
   const cfg = DATA.config || {};
   const el1 = document.getElementById('cfg-company');
   const el2 = document.getElementById('cfg-slide-dur');
+  const el3 = document.getElementById('cfg-news-block');
   if (el1) el1.value = cfg.company_name||'';
   if (el2) el2.value = cfg.slide_duration||12;
+  if (el3) el3.value = cfg.news_blocklist||'';
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2258,6 +2265,7 @@ function saveConfig() {
   DATA.config = DATA.config || {};
   DATA.config.company_name   = document.getElementById('cfg-company').value;
   DATA.config.slide_duration = parseInt(document.getElementById('cfg-slide-dur').value) || 12;
+  DATA.config.news_blocklist = document.getElementById('cfg-news-block').value.trim();
   save(DATA); renderAll(); toast('Configurações salvas!');
 }
 function exportContent() {
