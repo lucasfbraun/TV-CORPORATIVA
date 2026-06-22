@@ -495,7 +495,37 @@ def set_content():
     return jsonify({"status": "ok"})
 
 
-# ── Upload e biblioteca de mídia ──────────────────────────────────────────────
+# ── Upload e biblioteca de mídia (com pastas) ─────────────────────────────────
+def safe_rel_path(rel):
+    """Sanitiza um caminho relativo dentro de uploads/ (impede '..' e traversal)."""
+    rel = (rel or "").replace("\\", "/").strip().strip("/")
+    parts = []
+    for seg in rel.split("/"):
+        seg = secure_filename(seg)
+        if seg and seg not in (".", ".."):
+            parts.append(seg)
+    return "/".join(parts)
+
+
+def uploads_abs(rel):
+    """Retorna (caminho_relativo_seguro, caminho_absoluto) garantindo que fica dentro de uploads/."""
+    safe = safe_rel_path(rel)
+    full = os.path.abspath(os.path.join(UPLOADS_DIR, safe))
+    root = os.path.abspath(UPLOADS_DIR)
+    if full != root and not full.startswith(root + os.sep):
+        return None, None
+    return safe, full
+
+
+def _file_kind(name):
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    if ext in {"mp4", "webm", "ogg", "mov", "avi"}:
+        return "video"
+    if ext == "pdf":
+        return "pdf"
+    return "image"
+
+
 @app.route("/api/upload", methods=["POST"])
 @login_required
 def upload_file():
@@ -507,42 +537,128 @@ def upload_file():
     if not allowed_file(file.filename):
         return jsonify({"error": "Tipo de arquivo não permitido"}), 400
 
-    safe = secure_filename(file.filename)
-    unique = f"{uuid.uuid4().hex[:8]}_{safe}"
-    file.save(os.path.join(UPLOADS_DIR, unique))
-    return jsonify({"status": "ok", "url": f"/uploads/{unique}", "filename": unique}), 201
+    safe_dir, dest_dir = uploads_abs(request.form.get("path", ""))
+    if dest_dir is None:
+        safe_dir, dest_dir = "", UPLOADS_DIR
+    os.makedirs(dest_dir, exist_ok=True)
+
+    safe_name = secure_filename(file.filename)
+    unique = f"{uuid.uuid4().hex[:8]}_{safe_name}"
+    file.save(os.path.join(dest_dir, unique))
+    rel_url = (safe_dir + "/" + unique).strip("/")
+    return jsonify({"status": "ok", "url": f"/uploads/{rel_url}", "filename": unique, "path": safe_dir}), 201
 
 
 @app.route("/api/uploads", methods=["GET"])
 @app.route("/api/library", methods=["GET"])
 @login_required
 def list_library():
-    items = []
-    for name in sorted(os.listdir(UPLOADS_DIR)):
-        path = os.path.join(UPLOADS_DIR, name)
-        if os.path.isfile(path):
-            ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
-            kind = "video" if ext in {"mp4", "webm", "ogg", "mov", "avi"} else "image"
-            size_bytes = os.path.getsize(path)
-            items.append({
+    safe, base = uploads_abs(request.args.get("path", ""))
+    if base is None or not os.path.isdir(base):
+        safe, base = "", UPLOADS_DIR
+    folders, files = [], []
+    for name in sorted(os.listdir(base), key=str.lower):
+        full = os.path.join(base, name)
+        relpath = (safe + "/" + name).strip("/")
+        if os.path.isdir(full):
+            try:
+                count = len(os.listdir(full))
+            except OSError:
+                count = 0
+            folders.append({"name": name, "path": relpath, "count": count})
+        elif os.path.isfile(full):
+            size_bytes = os.path.getsize(full)
+            files.append({
                 "filename": name,
-                "url": f"/uploads/{name}",
-                "type": kind,
+                "path": relpath,
+                "url": f"/uploads/{relpath}",
+                "type": _file_kind(name),
                 "size": size_bytes,
                 "size_mb": round(size_bytes / (1024 * 1024), 2),
             })
-    return jsonify(items)
+    return jsonify({"path": safe, "folders": folders, "files": files})
+
+
+@app.route("/api/library/folder", methods=["POST"])
+@login_required
+def create_folder():
+    data = request.get_json(silent=True) or {}
+    name = secure_filename((data.get("name") or "").strip())
+    if not name:
+        return jsonify({"error": "Nome de pasta inválido"}), 400
+    rel = (safe_rel_path(data.get("path", "")) + "/" + name).strip("/")
+    safe, full = uploads_abs(rel)
+    if full is None:
+        return jsonify({"error": "Caminho inválido"}), 400
+    if os.path.exists(full):
+        return jsonify({"error": "Já existe uma pasta com esse nome"}), 409
+    os.makedirs(full)
+    return jsonify({"status": "ok", "path": safe}), 201
+
+
+@app.route("/api/library/folder", methods=["DELETE"])
+@login_required
+def delete_folder():
+    safe, full = uploads_abs(request.args.get("path", ""))
+    if not safe or full is None or not os.path.isdir(full):
+        return jsonify({"error": "Pasta não encontrada"}), 404
+    import shutil
+    shutil.rmtree(full)
+    return jsonify({"status": "removed"})
 
 
 @app.route("/api/library/<path:filename>", methods=["DELETE"])
 @login_required
 def delete_library(filename):
-    safe = secure_filename(filename)
-    path = os.path.join(UPLOADS_DIR, safe)
-    if os.path.isfile(path):
-        os.remove(path)
-        return jsonify({"status": "removed"})
-    return jsonify({"error": "Arquivo não encontrado"}), 404
+    safe, full = uploads_abs(filename)
+    if full is None or not os.path.isfile(full):
+        return jsonify({"error": "Arquivo não encontrado"}), 404
+    os.remove(full)
+    return jsonify({"status": "removed"})
+
+
+def _replace_url_everywhere(obj, old, new):
+    """Atualiza recursivamente qualquer URL antiga para a nova no conteúdo."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, str) and v == old:
+                obj[k] = new
+            else:
+                _replace_url_everywhere(v, old, new)
+    elif isinstance(obj, list):
+        for item in obj:
+            _replace_url_everywhere(item, old, new)
+
+
+@app.route("/api/library/move", methods=["POST"])
+@login_required
+def move_file():
+    data = request.get_json(silent=True) or {}
+    src_rel, src_full = uploads_abs(data.get("from", ""))
+    if src_full is None or not os.path.isfile(src_full):
+        return jsonify({"error": "Arquivo não encontrado"}), 404
+    dst_rel, dst_full = uploads_abs(data.get("to", ""))
+    if dst_full is None:
+        return jsonify({"error": "Pasta de destino inválida"}), 400
+    os.makedirs(dst_full, exist_ok=True)
+
+    name = os.path.basename(src_full)
+    target = os.path.join(dst_full, name)
+    if os.path.exists(target):  # não sobrescreve: gera nome único
+        base, ext = os.path.splitext(name)
+        name = f"{base}_{uuid.uuid4().hex[:4]}{ext}"
+        target = os.path.join(dst_full, name)
+
+    import shutil
+    shutil.move(src_full, target)
+    new_rel = (dst_rel + "/" + name).strip("/")
+
+    # Mantém os slides apontando para o novo local
+    content = load_content()
+    _replace_url_everywhere(content, f"/uploads/{src_rel}", f"/uploads/{new_rel}")
+    save_content(content)
+
+    return jsonify({"status": "ok", "url": f"/uploads/{new_rel}", "path": new_rel})
 
 
 # ── Arquivos servidos ─────────────────────────────────────────────────────────

@@ -288,19 +288,30 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
 .upload-progress-bar { height:100%; background:var(--blue-light); width:0%; transition:width .3s; }
 .upload-name { font-size:12px; color:var(--blue-light); margin-top:6px; font-weight:600; }
 .library-grid {
-  display:grid; grid-template-columns:repeat(auto-fill,minmax(90px,1fr));
-  gap:8px; max-height:220px; overflow-y:auto; margin-top:10px;
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr));
+  gap:8px; max-height:380px; overflow-y:auto; margin-top:10px;
 }
 .lib-item {
+  position:relative;
   border:2px solid #e5eaf2; border-radius:8px; padding:6px;
   cursor:pointer; text-align:center; transition:border .15s;
   font-size:11px; color:var(--dim); overflow:hidden;
 }
 .lib-item:hover { border-color:var(--blue-light); }
 .lib-item.selected { border-color:var(--accent); }
+.lib-item.lib-folder { background:#f6faf8; border-color:#dbe7e2; }
+.lib-item.lib-folder:hover { border-color:var(--brand-lime); }
 .lib-item img, .lib-item video { width:100%; height:60px; object-fit:cover; border-radius:4px; margin-bottom:4px; display:block; }
 .lib-item .lib-icon { font-size:28px; display:block; margin-bottom:4px; }
-.lib-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lib-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600; color:var(--text); }
+.lib-del {
+  position:absolute; top:3px; right:3px; border:none; background:rgba(224,108,117,.92);
+  color:#fff; border-radius:6px; width:22px; height:22px; font-size:11px; cursor:pointer;
+  opacity:0; transition:opacity .15s; line-height:1;
+}
+.lib-item:hover .lib-del { opacity:1; }
+.lib-item.lib-drop { border-color:var(--brand-lime); background:#eaf6e0; box-shadow:0 0 0 2px var(--brand-lime); }
+#lib-breadcrumb a.lib-drop { background:var(--brand-lime); color:#fff; }
 
 /* RESPONSIVE */
 @media(max-width:900px) {
@@ -547,10 +558,13 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
             <div class="upload-progress-bar" id="lib-progress-bar"></div>
           </div>
         </div>
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;">
-          <div id="lib-status" style="flex:1;font-size:13px;color:var(--dim);"></div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+          <div id="lib-breadcrumb" style="flex:1;font-size:13px;min-width:200px;color:var(--blue-light);"></div>
+          <button class="btn btn-outline btn-sm" onclick="createLibFolder()">➕ Nova Pasta</button>
           <button class="btn btn-outline btn-sm" onclick="loadLibrary()">🔄 Atualizar</button>
         </div>
+        <div id="lib-status" style="font-size:12px;color:var(--dim);margin-bottom:4px;"></div>
+        <div style="font-size:11px;color:var(--dim);margin-bottom:10px;">💡 Arraste um arquivo para cima de uma pasta (ou para um nível no caminho acima) para movê-lo.</div>
         <div class="library-grid" id="lib-grid">
           <div style="color:var(--dim);font-size:13px;grid-column:1/-1;">Carregando biblioteca...</div>
         </div>
@@ -2034,26 +2048,34 @@ function openMediaModal(id=null) {
 }
 function editMedia(id) { openMediaModal(id); }
 
-async function toggleMediaLibrary() {
+let mediaLibPath = '';
+
+function toggleMediaLibrary() {
   const grid = document.getElementById('media-lib-grid');
-  if (grid.style.display === 'grid') { grid.style.display = 'none'; return; }
-  grid.style.display = 'grid';
-  grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(92px,1fr))';
-  grid.style.gap = '8px';
-  grid.innerHTML = '<div style="grid-column:1/-1;color:var(--dim);font-size:13px;">Carregando...</div>';
+  if (grid.style.display === 'block') { grid.style.display = 'none'; return; }
+  grid.style.display = 'block';
+  navMediaLib('');
+}
+
+async function navMediaLib(path) {
+  mediaLibPath = path || '';
+  const grid = document.getElementById('media-lib-grid');
+  grid.innerHTML = '<div style="color:var(--dim);font-size:13px;">Carregando...</div>';
   try {
-    const r = await fetch('/api/uploads');
+    const r = await fetch('/api/uploads?path=' + encodeURIComponent(mediaLibPath));
     if (r.status === 401) { location.href = '/login?next=/admin'; return; }
-    const files = await r.json();
-    if (!files.length) {
-      grid.innerHTML = '<div style="grid-column:1/-1;color:var(--dim);font-size:13px;">Biblioteca vazia. Envie arquivos na aba 📁 Biblioteca.</div>';
-      return;
-    }
-    grid.innerHTML = files.map(f => {
-      const isVid = f.type === 'video';
-      const isPdf = /\.pdf$/i.test(f.filename);
-      const thumb = isVid ? `<div style="font-size:28px;line-height:60px;">🎬</div>`
-                  : isPdf ? `<div style="font-size:28px;line-height:60px;">📄</div>`
+    const data = await r.json();
+    mediaLibPath = data.path || '';
+    const folders = data.folders || [], files = data.files || [];
+    let inner = folders.map(f => `
+      <div onclick="navMediaLib('${f.path.replace(/'/g, "\\'")}')" title="${f.name}"
+           style="cursor:pointer;text-align:center;border:1px solid #e0e7f0;border-radius:8px;padding:6px;background:#fff;">
+        <div style="font-size:28px;line-height:48px;">📁</div>
+        <div style="font-size:10px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name.slice(0,14)}</div>
+      </div>`).join('');
+    inner += files.map(f => {
+      const thumb = f.type === 'video' ? `<div style="font-size:28px;line-height:60px;">🎬</div>`
+                  : f.type === 'pdf' ? `<div style="font-size:28px;line-height:60px;">📄</div>`
                   : `<img src="${f.url}" style="width:100%;height:60px;object-fit:cover;border-radius:6px;" onerror="this.style.display='none'">`;
       return `<div title="${f.filename}" style="cursor:pointer;text-align:center;border:1px solid #e0e7f0;border-radius:8px;padding:6px;background:#fff;"
                    onclick="pickMediaFromLibrary('${f.url.replace(/'/g, "\\'")}')">
@@ -2061,8 +2083,13 @@ async function toggleMediaLibrary() {
                 <div style="font-size:10px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px;">${f.filename.slice(0, 16)}</div>
               </div>`;
     }).join('');
+    if (!folders.length && !files.length)
+      inner = '<div style="grid-column:1/-1;color:var(--dim);font-size:13px;">Pasta vazia.</div>';
+    grid.innerHTML = `<div id="media-lib-breadcrumb" style="font-size:12px;margin-bottom:8px;color:var(--blue-light);"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;">${inner}</div>`;
+    renderLibBreadcrumb(mediaLibPath, 'media');
   } catch (e) {
-    grid.innerHTML = '<div style="grid-column:1/-1;color:var(--red);font-size:13px;">Servidor indisponível.</div>';
+    grid.innerHTML = '<div style="color:var(--red);font-size:13px;">Servidor indisponível.</div>';
   }
 }
 
@@ -2396,9 +2423,10 @@ const ALLOWED_UPLOAD_EXT = ['png', 'jpg', 'jpeg', 'mp4', 'pdf'];
 function uploadExt(file) { return (file.name.split('.').pop() || '').toLowerCase(); }
 function isAllowedUpload(file) { return ALLOWED_UPLOAD_EXT.includes(uploadExt(file)); }
 
-async function uploadToServer(file, progressBarEl, progressWrapEl) {
+async function uploadToServer(file, progressBarEl, progressWrapEl, path = '') {
   const form = new FormData();
   form.append('file', file);
+  if (path) form.append('path', path);
   if (progressWrapEl) progressWrapEl.style.display = 'block';
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -2502,32 +2530,98 @@ async function uploadGalleryRowFile(input) {
 // ═══════════════════════════════════════════════════════════
 // BIBLIOTECA DE ARQUIVOS
 // ═══════════════════════════════════════════════════════════
-async function loadLibrary() {
+let libPath = '';
+
+function renderLibBreadcrumb(path, scope) {
+  const el = document.getElementById(scope === 'media' ? 'media-lib-breadcrumb' : 'lib-breadcrumb');
+  if (!el) return;
+  const nav = scope === 'media' ? 'navMediaLib' : 'loadLibrary';
+  // No painel Biblioteca, os níveis também recebem arquivos arrastados
+  const drop = scope === 'lib'
+    ? (p) => ` ondragover="libFolderDragOver(event)" ondragleave="libFolderDragLeave(event)" ondrop="libFolderDrop(event,'${p.replace(/'/g, "\\'")}')"`
+    : () => '';
+  let acc = '', html = `<a href="#" onclick="event.preventDefault();${nav}('')"${drop('')} style="text-decoration:none;font-weight:600;padding:2px 5px;border-radius:5px;">📁 Biblioteca</a>`;
+  if (path) path.split('/').forEach(seg => {
+    acc = (acc ? acc + '/' : '') + seg;
+    html += ` <span style="color:var(--dim)">/</span> <a href="#" onclick="event.preventDefault();${nav}('${acc.replace(/'/g, "\\'")}')"${drop(acc)} style="text-decoration:none;padding:2px 5px;border-radius:5px;">${seg}</a>`;
+  });
+  el.innerHTML = html;
+}
+
+async function loadLibrary(path) {
+  if (path !== undefined) libPath = path;
   const grid   = document.getElementById('lib-grid');
   const status = document.getElementById('lib-status');
   if (!grid) return;
   grid.innerHTML = '<div style="color:var(--dim);font-size:13px;grid-column:1/-1;">Carregando...</div>';
   try {
-    const r = await fetch('/api/uploads');
+    const r = await fetch('/api/uploads?path=' + encodeURIComponent(libPath));
+    if (r.status === 401) { location.href = '/login?next=/admin'; return; }
     if (!r.ok) throw new Error('Servidor indisponível');
-    const files = await r.json();
-    status.textContent = files.length + ' arquivo(s) na biblioteca';
-    if (!files.length) {
-      grid.innerHTML = '<div style="color:var(--dim);font-size:13px;grid-column:1/-1;">Nenhum arquivo ainda. Envie imagens ou vídeos acima.</div>';
-      return;
-    }
-    grid.innerHTML = files.map(f => `
-      <div class="lib-item" title="${f.filename} (${f.size_mb}MB)" onclick="libSelectFile('${f.url}','${f.type}')">
-        ${f.type==='video'
-          ? `<span class="lib-icon">🎬</span>`
-          : `<img src="${f.url}" alt="" onerror="this.style.display='none'">`}
+    const data = await r.json();
+    libPath = data.path || '';
+    renderLibBreadcrumb(libPath, 'lib');
+    const folders = data.folders || [], files = data.files || [];
+    status.textContent = `${folders.length} pasta(s) · ${files.length} arquivo(s)`;
+    let html = folders.map(f => `
+      <div class="lib-item lib-folder" title="${f.name}" onclick="loadLibrary('${f.path.replace(/'/g, "\\'")}')"
+           ondragover="libFolderDragOver(event)" ondragleave="libFolderDragLeave(event)" ondrop="libFolderDrop(event,'${f.path.replace(/'/g, "\\'")}')">
+        <span class="lib-icon">📁</span>
+        <div class="lib-name">${f.name.slice(0,16)}</div>
+        <div style="font-size:10px;color:var(--dim);">${f.count} item(ns)</div>
+        <button class="lib-del" title="Excluir pasta" onclick="event.stopPropagation();deleteLibFolder('${f.path.replace(/'/g, "\\'")}')">🗑️</button>
+      </div>`).join('');
+    html += files.map(f => `
+      <div class="lib-item" title="${f.filename} (${f.size_mb}MB) — arraste para uma pasta" draggable="true"
+           ondragstart="libDragFile(event,'${f.path.replace(/'/g, "\\'")}')"
+           onclick="libSelectFile('${f.url}','${f.type}')">
+        ${f.type==='video' ? `<span class="lib-icon">🎬</span>` : f.type==='pdf' ? `<span class="lib-icon">📄</span>` : `<img src="${f.url}" alt="" onerror="this.style.display='none'">`}
         <div class="lib-name">${f.filename.slice(0,16)}</div>
         <div style="font-size:10px;color:var(--dim);">${f.size_mb}MB</div>
+        <button class="lib-del" title="Excluir arquivo" onclick="event.stopPropagation();deleteLibFile('${f.path.replace(/'/g, "\\'")}')">🗑️</button>
       </div>`).join('');
+    if (!folders.length && !files.length)
+      html = '<div style="color:var(--dim);font-size:13px;grid-column:1/-1;">Pasta vazia. Crie uma subpasta ou envie arquivos.</div>';
+    grid.innerHTML = html;
   } catch(e) {
-    status.textContent = '⚠️ Servidor não disponível. Inicie server.py.';
+    status.textContent = '⚠️ Servidor não disponível.';
     grid.innerHTML = '<div style="color:var(--dim);font-size:13px;grid-column:1/-1;">Sem conexão com o servidor.</div>';
   }
+}
+
+async function createLibFolder() {
+  const name = prompt('Nome da nova pasta:');
+  if (!name || !name.trim()) return;
+  try {
+    const r = await fetch('/api/library/folder', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: libPath, name: name.trim() })
+    });
+    const data = await r.json();
+    if (!r.ok) { toast('❌ ' + (data.error || 'Erro ao criar pasta')); return; }
+    toast('📁 Pasta criada!');
+    loadLibrary();
+  } catch(e) { toast('❌ Sem conexão com o servidor.'); }
+}
+
+async function deleteLibFolder(path) {
+  if (!confirm('Excluir a pasta "' + path + '" e TODO o seu conteúdo?')) return;
+  try {
+    const r = await fetch('/api/library/folder?path=' + encodeURIComponent(path), { method: 'DELETE' });
+    if (!r.ok) { const d = await r.json(); toast('❌ ' + (d.error || 'Erro')); return; }
+    toast('🗑️ Pasta excluída.');
+    loadLibrary();
+  } catch(e) { toast('❌ Sem conexão com o servidor.'); }
+}
+
+async function deleteLibFile(path) {
+  if (!confirm('Excluir o arquivo "' + path.split('/').pop() + '"?')) return;
+  try {
+    const r = await fetch('/api/library/' + path.split('/').map(encodeURIComponent).join('/'), { method: 'DELETE' });
+    if (!r.ok) { const d = await r.json(); toast('❌ ' + (d.error || 'Erro')); return; }
+    toast('🗑️ Arquivo excluído.');
+    loadLibrary();
+  } catch(e) { toast('❌ Sem conexão com o servidor.'); }
 }
 
 function libSelectFile(url, type) {
@@ -2535,6 +2629,36 @@ function libSelectFile(url, type) {
   event.currentTarget.classList.add('selected');
   toast(`📋 URL copiada: ${url}`);
   navigator.clipboard?.writeText(url).catch(() => {});
+}
+
+// ── Mover arquivos entre pastas (arrastar e soltar) ──────
+let _libDragFile = null;
+function libDragFile(e, path) {
+  _libDragFile = path;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', path);
+}
+function libFolderDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('lib-drop'); }
+function libFolderDragLeave(e) { e.currentTarget.classList.remove('lib-drop'); }
+function libFolderDrop(e, folderPath) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('lib-drop');
+  const from = _libDragFile || e.dataTransfer.getData('text/plain');
+  _libDragFile = null;
+  if (from) moveLibFile(from, folderPath);
+}
+async function moveLibFile(from, to) {
+  if (from === to) return;
+  try {
+    const r = await fetch('/api/library/move', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to })
+    });
+    const d = await r.json();
+    if (!r.ok) { toast('❌ ' + (d.error || 'Erro ao mover')); return; }
+    toast('✅ Movido para ' + (to || 'Biblioteca') + '.');
+    loadLibrary();
+  } catch (e) { toast('❌ Sem conexão com o servidor.'); }
 }
 
 async function libUploadFiles(files) {
@@ -2548,7 +2672,7 @@ async function libUploadFiles(files) {
     if (!isAllowedUpload(file)) { toast('❌ ' + file.name + ': tipo não permitido (aceitos: PNG, JPG, JPEG, MP4, PDF).'); continue; }
     status.textContent = `Enviando ${file.name}...`;
     try {
-      await uploadToServer(file, bar, null);
+      await uploadToServer(file, bar, null, libPath);   // envia para a pasta atual
       done++;
       bar.style.width = (done/files.length*100) + '%';
     } catch(e) {
