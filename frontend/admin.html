@@ -123,6 +123,7 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
 .type-badge.gallery      { background:#fde8f3;color:#9f2a6a; }
 .type-badge.news         { background:#e6eefb;color:#2e5b8a; }
 .type-badge.urlshot      { background:#efe8fd;color:#5a3a8a; }
+.type-badge.integration  { background:#e2f3ef;color:#0f6e64; }
 
 .status-dot { width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px; }
 .status-dot.on  { background:var(--green); }
@@ -352,6 +353,7 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
     <div class="nav-group">
       <div class="nav-label">Sistema</div>
       <button class="nav-btn" onclick="showPanel('users',event)">👤 Usuários</button>
+      <button class="nav-btn" onclick="showPanel('integrations',event)">🔌 Integrações</button>
       <button class="nav-btn" onclick="showPanel('config',event)">⚙️ Configurações</button>
     </div>
   </nav>
@@ -535,6 +537,7 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
           <button class="btn btn-outline btn-sm" onclick="quickAdd('gallery')">🗂️ Galeria</button>
           <button class="btn btn-outline btn-sm" onclick="quickAddFromLibrary()">📁 Biblioteca</button>
           <button class="btn btn-outline btn-sm" onclick="openCaptureModal()">🌐 Página (URL)</button>
+          <button class="btn btn-outline btn-sm" onclick="openIntgSlideModal()">🔌 Integração</button>
           <button class="btn btn-outline btn-sm" onclick="openNewsModal()">📰 Notícias</button>
           <button class="btn btn-outline btn-sm" onclick="quickAdd('calendar')">📅 Evento</button>
         </div>
@@ -609,6 +612,23 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
       </div>
     </div>
 
+    <div class="panel" id="panel-integrations">
+      <div class="card">
+        <div class="card-title"><span>🔌</span> Integrações (login automático)</div>
+        <p style="font-size:13px;color:var(--dim);margin-bottom:14px;">
+          Cadastre páginas que exigem login (ex.: Grafana). O servidor autentica com o usuário/senha e captura a tela
+          de tempos em tempos. Depois é só adicionar na grade em <b>Montar Grade → 🔌 Integração</b>.
+        </p>
+        <div class="action-row-end" style="margin-bottom:14px;">
+          <button class="btn btn-primary" onclick="openIntegrationModal()">➕ Nova Integração</button>
+        </div>
+        <table class="tbl">
+          <thead><tr><th>Nome</th><th>Tipo</th><th>URL</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody id="intg-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="panel" id="panel-config">
       <div class="card">
         <div class="card-title"><span>⚙️</span> Configurações Gerais</div>
@@ -656,6 +676,81 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
 </div><!-- /app -->
 
 <!-- ═══ MODAIS ═══════════════════════════════════════════ -->
+
+<!-- Modal: Integração (cadastro) -->
+<div class="modal-overlay" id="modal-integration">
+  <div class="modal">
+    <div class="modal-title">
+      <span>🔌</span> <span id="integration-modal-title">Nova Integração</span>
+      <button class="modal-close" onclick="closeModal('modal-integration')">×</button>
+    </div>
+    <input type="hidden" id="integration-edit-id">
+    <div class="form-row">
+      <div class="form-group" style="flex:2;">
+        <label class="form-label">Nome</label>
+        <input class="form-input" id="integration-name" placeholder="Ex: Monitoramento Grafana">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tipo</label>
+        <select class="form-select" id="integration-type">
+          <option value="grafana">Grafana</option>
+          <option value="generic">Outro (login padrão)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">URL (pode ser a playlist)</label>
+      <input class="form-input" id="integration-url" placeholder="https://monitoramento.exemplo.com/...">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Usuário</label>
+        <input class="form-input" id="integration-user" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Senha</label>
+        <input class="form-input" id="integration-pass" type="password" autocomplete="new-password" placeholder="(em branco = manter)">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Atualizar a cada (s)</label>
+        <input class="form-input" type="number" id="integration-interval" min="5" max="600" value="20">
+      </div>
+    </div>
+    <small style="display:block;color:var(--dim);font-size:11px;margin:-4px 0 12px;">🔒 A senha fica só no servidor — não vai para as TVs nem para o conteúdo público.</small>
+    <div class="action-row-end">
+      <button class="btn btn-outline" onclick="closeModal('modal-integration')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveIntegration()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Integração na grade -->
+<div class="modal-overlay" id="modal-intgslide">
+  <div class="modal">
+    <div class="modal-title">
+      <span>🔌</span> <span>Adicionar Integração à grade</span>
+      <button class="modal-close" onclick="closeModal('modal-intgslide')">×</button>
+    </div>
+    <input type="hidden" id="intgslide-edit-id">
+    <div class="form-group">
+      <label class="form-label">Integração</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select class="form-select" id="intgslide-select" style="flex:1;"></select>
+        <button type="button" class="btn btn-outline btn-sm" onclick="openIntegrationModal()" title="Cadastrar nova (usuário e senha)" style="white-space:nowrap;">➕ Nova</button>
+      </div>
+      <small style="color:var(--dim);font-size:11px;">O usuário e a senha ficam no cadastro da integração. Clique em <b>➕ Nova</b> para criar uma aqui mesmo, ou edite em Sistema → 🔌 Integrações.</small>
+    </div>
+    <small style="display:block;color:var(--dim);font-size:11px;margin:-2px 0 12px;">⏱️ Sem duração fixa: a integração é uma playlist e alterna o conteúdo sozinha (usa o tempo padrão da grade para passar ao próximo slide).</small>
+    <div class="toggle-row">
+      <div class="toggle on" id="intgslide-active-toggle" onclick="this.classList.toggle('on')"></div>
+      <span class="toggle-label">Slide ativo</span>
+    </div>
+    <div class="action-row-end">
+      <button class="btn btn-outline" onclick="closeModal('modal-intgslide')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveIntgSlide()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal: Página (URL) -->
 <div class="modal-overlay" id="modal-capture">
@@ -1252,7 +1347,8 @@ const PANEL_TITLES = {
   dashboard:'Dashboard', tvs:'TVs', grades:'Grades de Programação',
   announcements:'Avisos', calendar:'Agenda',
   media:'Mídia', gallery:'Galeria', timeline:'Grade de Programação',
-  biblioteca:'Biblioteca de Arquivos', rodapes:'Barra inferior', config:'Configurações'
+  biblioteca:'Biblioteca de Arquivos', rodapes:'Barra inferior',
+  integrations:'Integrações', config:'Configurações'
 };
 
 function showPanel(id, ev) {
@@ -2272,6 +2368,127 @@ function saveCapture() {
   save(DATA); renderAll(); closeModal('modal-capture'); toast('Página salva!');
 }
 
+// ── Integrações (login automático) ────────────────────────
+let _integrations = [];
+
+function intgStatusBadge(s) {
+  const ok = s === 'ok';
+  const color = ok ? 'var(--green)' : (s && s.startsWith('erro') ? 'var(--red)' : 'var(--dim)');
+  return `<span style="color:${color};font-size:12px;" title="${(s||'').replace(/"/g,'')}">${ok ? '🟢 ativo' : (s || 'parado')}</span>`;
+}
+
+async function loadIntegrations() {
+  const tb = document.getElementById('intg-tbody');
+  if (!tb) return;
+  tb.innerHTML = '<tr><td colspan="5" style="color:var(--dim);">Carregando...</td></tr>';
+  try {
+    const r = await fetch('/api/integrations');
+    if (r.status === 401) { location.href = '/login?next=/admin'; return; }
+    _integrations = await r.json();
+    if (!_integrations.length) { tb.innerHTML = '<tr><td colspan="5" style="color:var(--dim);">Nenhuma integração. Clique em "Nova Integração".</td></tr>'; return; }
+    tb.innerHTML = _integrations.map(i => `
+      <tr>
+        <td><b>${i.name}</b></td>
+        <td>${i.type}</td>
+        <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.url}</td>
+        <td>${intgStatusBadge(i.status)}</td>
+        <td>
+          <button class="btn btn-outline btn-sm" onclick="openIntegrationModal('${i.id}')">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteIntegration('${i.id}')">🗑️</button>
+        </td>
+      </tr>`).join('');
+  } catch (e) { tb.innerHTML = '<tr><td colspan="5" style="color:var(--red);">Servidor indisponível.</td></tr>'; }
+}
+
+function openIntegrationModal(id=null) {
+  const i = id ? _integrations.find(x => x.id === id) : null;
+  document.getElementById('integration-edit-id').value = id || '';
+  document.getElementById('integration-name').value = i?.name || '';
+  document.getElementById('integration-type').value = i?.type || 'grafana';
+  document.getElementById('integration-url').value = i?.url || '';
+  document.getElementById('integration-user').value = i?.username || '';
+  document.getElementById('integration-pass').value = '';
+  document.getElementById('integration-interval').value = i?.interval || 20;
+  document.getElementById('integration-modal-title').textContent = id ? 'Editar Integração' : 'Nova Integração';
+  openModal('modal-integration');
+}
+
+async function saveIntegration() {
+  const id = document.getElementById('integration-edit-id').value;
+  const body = {
+    name: document.getElementById('integration-name').value.trim(),
+    type: document.getElementById('integration-type').value,
+    url: document.getElementById('integration-url').value.trim(),
+    username: document.getElementById('integration-user').value,
+    interval: parseInt(document.getElementById('integration-interval').value) || 20,
+  };
+  const pass = document.getElementById('integration-pass').value;
+  if (pass) body.password = pass;
+  if (!body.name || !/^https?:\/\//i.test(body.url)) { toast('❌ Informe nome e URL (http/https).'); return; }
+  try {
+    const r = await fetch('/api/integrations' + (id ? '/' + id : ''), {
+      method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (!r.ok) { toast('❌ ' + (d.error || 'Erro')); return; }
+    closeModal('modal-integration'); toast('Integração salva!'); loadIntegrations();
+    // Se o seletor "Adicionar à grade" estiver aberto, atualiza e já seleciona a nova
+    const picker = document.getElementById('modal-intgslide');
+    if (picker && picker.classList.contains('open')) _fillIntgSelect(d.id);
+  } catch (e) { toast('❌ Sem conexão com o servidor.'); }
+}
+
+async function deleteIntegration(id) {
+  if (!confirm('Excluir esta integração?')) return;
+  try {
+    const r = await fetch('/api/integrations/' + id, { method: 'DELETE' });
+    if (!r.ok) { toast('❌ Erro ao excluir'); return; }
+    toast('🗑️ Integração removida.'); loadIntegrations();
+  } catch (e) { toast('❌ Sem conexão com o servidor.'); }
+}
+
+// Adicionar uma integração como slide na grade
+async function _fillIntgSelect(selectedId) {
+  const sel = document.getElementById('intgslide-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Carregando...</option>';
+  try {
+    const r = await fetch('/api/integrations');
+    if (r.status === 401) { location.href = '/login?next=/admin'; return; }
+    const list = await r.json();
+    sel.innerHTML = (Array.isArray(list) && list.length)
+      ? list.map(i => `<option value="${i.id}">${i.name}</option>`).join('')
+      : '<option value="">— nenhuma cadastrada —</option>';
+    if (selectedId) sel.value = selectedId;
+  } catch (e) { sel.innerHTML = '<option value="">erro ao carregar</option>'; }
+}
+
+async function openIntgSlideModal(id=null) {
+  const s = id ? activeSlides().find(x => x.id === id) : null;
+  await _fillIntgSelect(s?.integration_id);
+  document.getElementById('intgslide-edit-id').value = id || '';
+  document.getElementById('intgslide-active-toggle').classList.toggle('on', s ? !!s.active : true);
+  openModal('modal-intgslide');
+}
+
+function saveIntgSlide() {
+  const id = document.getElementById('intgslide-edit-id').value;
+  const sel = document.getElementById('intgslide-select');
+  const intgId = sel.value;
+  if (!intgId) { toast('⚠️ Cadastre uma integração em Sistema → 🔌 Integrações primeiro.'); return; }
+  const name = sel.options[sel.selectedIndex]?.text || 'Integração';
+  const obj = {
+    id: id ? parseInt(id) : nextSlideId(),
+    type: 'integration',
+    active: document.getElementById('intgslide-active-toggle').classList.contains('on'),
+    integration_id: intgId,
+    name,
+    duration: null,   // sem tempo fixo — usa o padrão da grade
+  };
+  pushOrUpdateSlide(obj, id);
+  save(DATA); renderAll(); closeModal('modal-intgslide'); toast('Integração adicionada à grade!');
+}
+
 // ── Galeria ───────────────────────────────────────────────
 function addGalleryImageRow(url='', caption='') {
   const list = document.getElementById('gallery-images-list');
@@ -2399,7 +2616,7 @@ function renderTimeline() {
   const legendEl  = document.getElementById('tl-legend');
   if (!barEl || !cardsEl) return;
 
-  const labels = {announcement:'Aviso',kpi:'KPI',calendar:'Agenda',media:'Mídia',gallery:'Galeria',news:'Notícias',urlshot:'Página'};
+  const labels = {announcement:'Aviso',kpi:'KPI',calendar:'Agenda',media:'Mídia',gallery:'Galeria',news:'Notícias',urlshot:'Página',integration:'Integração'};
   const durs   = slides.map(s => (s.duration && s.duration > 0) ? s.duration : defDur);
   const total  = durs.reduce((a,b) => a+b, 0) || 1;
 
@@ -2499,6 +2716,11 @@ function slidePreview(s) {
       <span style="font-size:32px;">🌐</span>
       <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;">${host.slice(0,24)}</span></div>`;
   }
+  if (s.type === 'integration') {
+    return `<div class="gp-ann" style="background:linear-gradient(135deg,#0f6e64,#0c3b38);">
+      <span style="font-size:32px;">🔌</span>
+      <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;">${s.name || 'Integração'}</span></div>`;
+  }
   return `<span class="gp-ico">🎬</span>`;
 }
 
@@ -2519,6 +2741,7 @@ function editSlide(id) {
   else if (s.type === 'gallery') openGalleryModal(id);
   else if (s.type === 'news') openNewsModal(id);
   else if (s.type === 'urlshot') openCaptureModal(id);
+  else if (s.type === 'integration') openIntgSlideModal(id);
   else if (s.type === 'calendar') { showPanel('calendar'); toast('Gerencie os eventos da agenda. Volte em "Montar Grade".'); }
 }
 
@@ -3001,6 +3224,7 @@ async function boot() {
 document.querySelectorAll('.nav-btn').forEach(b => {
   if (b.textContent.includes('Biblioteca')) b.addEventListener('click', () => setTimeout(loadLibrary, 100));
   if (b.textContent.includes('Usuários'))   b.addEventListener('click', () => setTimeout(loadUsers, 100));
+  if (b.textContent.includes('Integrações')) b.addEventListener('click', () => setTimeout(loadIntegrations, 100));
 });
 
 boot();

@@ -486,6 +486,30 @@ function buildCalendarSlide(s) {
     </div>`;
 }
 
+function buildIntegrationSlide(s) {
+  const img = s.integration_id ? `/uploads/captures/intg-${s.integration_id}.png` : '';
+  return `
+    <div class="slide slide-media" id="slide-${s.id}">
+      ${img ? `<div class="media-bg" id="ibg-${s.id}" style="background-image:url('${img}')"></div>
+               <img class="media-fg" id="iimg-${s.id}" src="${img}" alt="" onerror="this.style.display='none'">`
+            : `<div class="news-loading">Integração não configurada</div>`}
+    </div>`;
+}
+
+function refreshIntegration(slide) {
+  if (!slide.integration_id) return;
+  const src = `/uploads/captures/intg-${slide.integration_id}.png?t=${Date.now()}`;
+  const img = document.getElementById('iimg-' + slide.id);
+  const bg = document.getElementById('ibg-' + slide.id);
+  if (img) { img.src = src; img.style.display = ''; }
+  if (bg) bg.style.backgroundImage = `url('${src}')`;
+}
+// Enquanto um slide de integração estiver na tela, recarrega o print (acompanha a playlist)
+setInterval(() => {
+  const s = slides[current];
+  if (s && s.type === 'integration') refreshIntegration(s);
+}, 10000);
+
 function buildUrlshotSlide(s) {
   const url = s.url || '';
   const zoom = s.zoom || 80;
@@ -618,6 +642,7 @@ function init() {
     else if (s.type === 'gallery')      html = buildGallerySlide(s);
     else if (s.type === 'news')         html = buildNewsSlide(s);
     else if (s.type === 'urlshot')      html = buildUrlshotSlide(s);
+    else if (s.type === 'integration')  html = buildIntegrationSlide(s);
     container.insertAdjacentHTML('beforeend', html);
 
     const dot = document.createElement('div');
@@ -726,6 +751,7 @@ function goTo(idx) {
     }
     if (curSlide?.type === 'media' && youtubeId(curSlide.url)) playYouTubeFor(curSlide);
     if (curSlide?.type === 'news') { const st = document.getElementById('news-' + curSlide.id); if (st) advanceNews(st); }
+    if (curSlide?.type === 'integration') refreshIntegration(curSlide);
   }
   dots.forEach((d,i) => d.classList.toggle('active', i===current));
 

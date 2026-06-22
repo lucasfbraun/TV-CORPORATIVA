@@ -27,6 +27,7 @@ import uuid
 import secrets
 import logging
 import time
+import threading
 import urllib.request
 import urllib.parse
 from datetime import date
@@ -638,6 +639,182 @@ def get_news():
     return jsonify(fetch_news(request.args.get("category", "TOP")))
 
 
+# ── Integrações com login (ex.: Grafana): login + print periódico ─────────────
+CAPTURES_DIR = os.path.join(UPLOADS_DIR, "captures")
+INTEGRATIONS_FILE = os.path.join(DATA_DIR, "integrations.json")
+_intg_threads = {}  # id -> {"stop": Event, "thread": Thread, "status": str}
+
+
+def load_integrations():
+    d = _read_json(INTEGRATIONS_FILE, {})
+    return d if isinstance(d, dict) else {}
+
+
+def save_integrations(d):
+    _write_json(INTEGRATIONS_FILE, d)
+
+
+def _public_integration(iid, c):
+    return {
+        "id": iid, "type": c.get("type", "grafana"), "name": c.get("name", ""),
+        "url": c.get("url", ""), "username": c.get("username", ""),
+        "interval": c.get("interval", 20), "active": c.get("active", True),
+        "has_password": bool(c.get("password")),
+        "status": (_intg_threads.get(iid, {}) or {}).get("status", "parado"),
+    }
+
+
+def _grafana_login(page, username, password):
+    """Preenche o formulário de login do Grafana."""
+    try:
+        page.fill('input[name="user"]', username, timeout=8000)
+    except Exception:
+        page.fill('input[name="username"], input[type="text"]', username, timeout=8000)
+    page.fill('input[name="password"], input[type="password"]', password, timeout=8000)
+    for sel in ('button[type="submit"]', 'button[aria-label="Login button"]',
+                'button:has-text("Log in")', 'button:has-text("Entrar")'):
+        try:
+            page.click(sel, timeout=2500)
+            break
+        except Exception:
+            continue
+    page.wait_for_timeout(3500)
+
+
+def integration_worker(iid, stop):
+    from playwright.sync_api import sync_playwright
+    from urllib.parse import urlparse
+    out = os.path.join(CAPTURES_DIR, f"intg-{iid}.png")
+    os.makedirs(CAPTURES_DIR, exist_ok=True)
+    while not stop.is_set():
+        cfg = load_integrations().get(iid)
+        if not cfg or not cfg.get("active", True):
+            time.sleep(5)
+            continue
+        interval = max(5, int(cfg.get("interval") or 20))
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
+                ctx = browser.new_context(viewport={"width": 1920, "height": 1080}, ignore_https_errors=True)
+                page = ctx.new_page()
+                u = urlparse(cfg["url"])
+                base = f"{u.scheme}://{u.netloc}"
+                # Grafana: modo kiosk (esconde menus/cabeçalho → só o dashboard, como F11)
+                target = cfg["url"]
+                if cfg.get("type", "grafana") == "grafana" and "kiosk" not in target:
+                    target += ("&kiosk" if "?" in target else "?kiosk")
+                page.goto(target, wait_until="domcontentloaded", timeout=45000)
+                # Se exigiu login, autentica e volta para a URL alvo (playlist)
+                if "/login" in page.url or page.query_selector('input[type="password"]'):
+                    if "/login" not in page.url:
+                        page.goto(base + "/login", wait_until="domcontentloaded", timeout=30000)
+                    _grafana_login(page, cfg.get("username", ""), cfg.get("password", ""))
+                    page.goto(target, wait_until="domcontentloaded", timeout=45000)
+                page.wait_for_timeout(5000)
+                if iid in _intg_threads:
+                    _intg_threads[iid]["status"] = "ok"
+                # Mantém a sessão aberta e tira prints (acompanha a rotação da playlist)
+                while not stop.is_set():
+                    cur = load_integrations().get(iid)
+                    if not cur or not cur.get("active", True):
+                        break
+                    tmp = out + ".tmp.png"
+                    page.screenshot(path=tmp)
+                    os.replace(tmp, out)
+                    interval = max(5, int(cur.get("interval") or interval))
+                    for _ in range(interval):
+                        if stop.is_set():
+                            break
+                        time.sleep(1)
+                browser.close()
+        except Exception as e:  # noqa: BLE001
+            log.warning("Integração %s: %s", iid, e)
+            if iid in _intg_threads:
+                _intg_threads[iid]["status"] = f"erro: {str(e)[:120]}"
+            time.sleep(15)
+
+
+def start_worker(iid):
+    old = _intg_threads.get(iid)
+    if old:
+        old["stop"].set()
+    stop = threading.Event()
+    t = threading.Thread(target=integration_worker, args=(iid, stop), daemon=True)
+    _intg_threads[iid] = {"stop": stop, "thread": t, "status": "iniciando"}
+    t.start()
+
+
+def stop_worker(iid):
+    st = _intg_threads.pop(iid, None)
+    if st:
+        st["stop"].set()
+
+
+def start_all_workers():
+    for iid, cfg in load_integrations().items():
+        if cfg.get("active", True):
+            start_worker(iid)
+
+
+@app.route("/api/integrations", methods=["GET"])
+@login_required
+def list_integrations():
+    d = load_integrations()
+    return jsonify([_public_integration(i, c) for i, c in d.items()])
+
+
+@app.route("/api/integrations", methods=["POST"])
+@login_required
+def create_integration():
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    url = (data.get("url") or "").strip()
+    if not name or not url.startswith(("http://", "https://")):
+        return jsonify({"error": "Nome e URL (http/https) são obrigatórios"}), 400
+    iid = "intg-" + uuid.uuid4().hex[:8]
+    d = load_integrations()
+    d[iid] = {
+        "type": data.get("type", "grafana"), "name": name, "url": url,
+        "username": data.get("username", ""), "password": data.get("password", ""),
+        "interval": int(data.get("interval") or 20), "active": True,
+    }
+    save_integrations(d)
+    start_worker(iid)
+    return jsonify(_public_integration(iid, d[iid])), 201
+
+
+@app.route("/api/integrations/<iid>", methods=["PUT"])
+@login_required
+def update_integration(iid):
+    d = load_integrations()
+    c = d.get(iid)
+    if not c:
+        return jsonify({"error": "Integração não encontrada"}), 404
+    data = request.get_json(silent=True) or {}
+    for k in ("name", "url", "username", "active", "type"):
+        if k in data:
+            c[k] = data[k]
+    if "interval" in data:
+        c["interval"] = int(data.get("interval") or 20)
+    if data.get("password"):  # só troca a senha se uma nova for enviada
+        c["password"] = data["password"]
+    save_integrations(d)
+    start_worker(iid) if c.get("active", True) else stop_worker(iid)
+    return jsonify(_public_integration(iid, c))
+
+
+@app.route("/api/integrations/<iid>", methods=["DELETE"])
+@login_required
+def delete_integration(iid):
+    d = load_integrations()
+    if iid not in d:
+        return jsonify({"error": "Integração não encontrada"}), 404
+    del d[iid]
+    save_integrations(d)
+    stop_worker(iid)
+    return jsonify({"status": "removed"})
+
+
 @app.route("/api/content", methods=["POST"])
 @login_required
 def set_content():
@@ -881,6 +1058,11 @@ if __name__ == "__main__":
     log.info("  Admin:   http://localhost:%s/admin", PORT)
     log.info("  Display: http://localhost:%s/tela/principal", PORT)
     log.info("=" * 60)
+
+    try:
+        start_all_workers()  # inicia as integrações (Grafana etc.)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Não foi possível iniciar integrações: %s", e)
 
     try:
         from waitress import serve
