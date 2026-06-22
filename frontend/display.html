@@ -231,6 +231,10 @@
   .slide-media .yt-wrap { width: 100%; height: 100%; }
   .slide-media .yt-wrap iframe { width: 100%; height: 100%; }
 
+  /* Página incorporada (URL em iframe) */
+  .slide-embed { background: #fff; align-items: stretch; justify-content: stretch; }
+  .slide-embed iframe { width: 100%; height: 100%; border: none; }
+
   /* ── NOTÍCIAS (uma por vez, imagem + manchete + fonte) ── */
   .slide-news { padding: 0; }
   .news-stage { position: absolute; inset: 0; }
@@ -482,6 +486,20 @@ function buildCalendarSlide(s) {
     </div>`;
 }
 
+function buildUrlshotSlide(s) {
+  const url = s.url || '';
+  const zoom = s.zoom || 80;
+  const z = zoom / 100;
+  const sizePct = (100 / zoom * 100).toFixed(2);   // viewport maior p/ caber mais conteúdo
+  const st = `width:${sizePct}%;height:${sizePct}%;transform:scale(${z});transform-origin:0 0;`;
+  return `
+    <div class="slide slide-embed" id="slide-${s.id}">
+      ${url ? `<iframe src="${url}" style="${st}" referrerpolicy="no-referrer" loading="eager"></iframe>`
+            : `<div class="news-loading">URL não definida</div>`}
+      ${s.title ? `<div class="media-caption">${s.title}</div>` : ''}
+    </div>`;
+}
+
 function buildNewsSlide(s) {
   const interval = (s.duration && s.count) ? Math.max(4, Math.floor(s.duration / s.count)) : 7;
   return `
@@ -599,6 +617,7 @@ function init() {
     else if (s.type === 'media')        html = buildMediaSlide(s);
     else if (s.type === 'gallery')      html = buildGallerySlide(s);
     else if (s.type === 'news')         html = buildNewsSlide(s);
+    else if (s.type === 'urlshot')      html = buildUrlshotSlide(s);
     container.insertAdjacentHTML('beforeend', html);
 
     const dot = document.createElement('div');

@@ -122,6 +122,7 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
 .type-badge.media        { background:#f3e8fd;color:#6a2a9f; }
 .type-badge.gallery      { background:#fde8f3;color:#9f2a6a; }
 .type-badge.news         { background:#e6eefb;color:#2e5b8a; }
+.type-badge.urlshot      { background:#efe8fd;color:#5a3a8a; }
 
 .status-dot { width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px; }
 .status-dot.on  { background:var(--green); }
@@ -533,6 +534,7 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
           <button class="btn btn-outline btn-sm" onclick="quickAdd('media')">🖼️ Mídia</button>
           <button class="btn btn-outline btn-sm" onclick="quickAdd('gallery')">🗂️ Galeria</button>
           <button class="btn btn-outline btn-sm" onclick="quickAddFromLibrary()">📁 Biblioteca</button>
+          <button class="btn btn-outline btn-sm" onclick="openCaptureModal()">🌐 Página (URL)</button>
           <button class="btn btn-outline btn-sm" onclick="openNewsModal()">📰 Notícias</button>
           <button class="btn btn-outline btn-sm" onclick="quickAdd('calendar')">📅 Evento</button>
         </div>
@@ -654,6 +656,41 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
 </div><!-- /app -->
 
 <!-- ═══ MODAIS ═══════════════════════════════════════════ -->
+
+<!-- Modal: Página (URL) -->
+<div class="modal-overlay" id="modal-capture">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-title">
+      <span>🌐</span> <span id="capture-modal-title">Página da Web (URL)</span>
+      <button class="modal-close" onclick="closeModal('modal-capture')">×</button>
+    </div>
+    <input type="hidden" id="capture-edit-id">
+    <div class="form-group">
+      <label class="form-label">URL da página</label>
+      <input class="form-input" id="capture-url" placeholder="https://...">
+      <small style="color:var(--dim);font-size:11px;">A página é exibida ao vivo, em tela cheia. As TVs precisam de internet para acessar a URL.</small>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Duração na tela (segundos)</label>
+        <input class="form-input" type="number" id="capture-duration" min="5" max="600" placeholder="Padrão da grade">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Zoom da página (%)</label>
+        <input class="form-input" type="number" id="capture-zoom" min="25" max="200" value="80">
+      </div>
+    </div>
+    <small style="display:block;color:var(--dim);font-size:11px;margin:-6px 0 12px;">Menos que 100% mostra mais conteúdo (evita cortar). Padrão: 80%.</small>
+    <div class="toggle-row">
+      <div class="toggle on" id="capture-active-toggle" onclick="this.classList.toggle('on')"></div>
+      <span class="toggle-label">Slide ativo</span>
+    </div>
+    <div class="action-row-end">
+      <button class="btn btn-outline" onclick="closeModal('modal-capture')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCapture()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal: Notícias -->
 <div class="modal-overlay" id="modal-news">
@@ -2207,6 +2244,34 @@ function saveNews() {
   save(DATA); renderAll(); closeModal('modal-news'); toast('Notícias salvas!');
 }
 
+// ── Página da Web (URL incorporada) ───────────────────────
+function openCaptureModal(id=null) {
+  document.getElementById('capture-edit-id').value = id||'';
+  const s = id ? activeSlides().find(x => x.id === id) : null;
+  document.getElementById('capture-url').value      = s?.url || '';
+  document.getElementById('capture-duration').value = s?.duration || '';
+  document.getElementById('capture-zoom').value     = s?.zoom || 80;
+  document.getElementById('capture-active-toggle').classList.toggle('on', s ? !!s.active : true);
+  document.getElementById('capture-modal-title').textContent = id ? 'Editar Página (URL)' : 'Página da Web (URL)';
+  openModal('modal-capture');
+}
+
+function saveCapture() {
+  const id = document.getElementById('capture-edit-id').value;
+  const url = document.getElementById('capture-url').value.trim();
+  if (!/^https?:\/\//i.test(url)) { toast('❌ Informe uma URL começando com http:// ou https://'); return; }
+  const obj = {
+    id: id ? parseInt(id) : nextSlideId(),
+    type: 'urlshot',
+    active: document.getElementById('capture-active-toggle').classList.contains('on'),
+    url,
+    zoom: parseInt(document.getElementById('capture-zoom').value) || 80,
+    duration: parseInt(document.getElementById('capture-duration').value) || null,
+  };
+  pushOrUpdateSlide(obj, id);
+  save(DATA); renderAll(); closeModal('modal-capture'); toast('Página salva!');
+}
+
 // ── Galeria ───────────────────────────────────────────────
 function addGalleryImageRow(url='', caption='') {
   const list = document.getElementById('gallery-images-list');
@@ -2334,7 +2399,7 @@ function renderTimeline() {
   const legendEl  = document.getElementById('tl-legend');
   if (!barEl || !cardsEl) return;
 
-  const labels = {announcement:'Aviso',kpi:'KPI',calendar:'Agenda',media:'Mídia',gallery:'Galeria',news:'Notícias'};
+  const labels = {announcement:'Aviso',kpi:'KPI',calendar:'Agenda',media:'Mídia',gallery:'Galeria',news:'Notícias',urlshot:'Página'};
   const durs   = slides.map(s => (s.duration && s.duration > 0) ? s.duration : defDur);
   const total  = durs.reduce((a,b) => a+b, 0) || 1;
 
@@ -2428,6 +2493,12 @@ function slidePreview(s) {
       <span style="font-size:32px;">📰</span>
       <span style="font-size:10px;">${s.label || 'Notícias'}</span></div>`;
   }
+  if (s.type === 'urlshot') {
+    const host = (s.url || 'Página').replace(/^https?:\/\//, '');
+    return `<div class="gp-ann" style="background:linear-gradient(135deg,#5a3a8a,#33215c);">
+      <span style="font-size:32px;">🌐</span>
+      <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;">${host.slice(0,24)}</span></div>`;
+  }
   return `<span class="gp-ico">🎬</span>`;
 }
 
@@ -2447,6 +2518,7 @@ function editSlide(id) {
   else if (s.type === 'media') openMediaModal(id);
   else if (s.type === 'gallery') openGalleryModal(id);
   else if (s.type === 'news') openNewsModal(id);
+  else if (s.type === 'urlshot') openCaptureModal(id);
   else if (s.type === 'calendar') { showPanel('calendar'); toast('Gerencie os eventos da agenda. Volte em "Montar Grade".'); }
 }
 

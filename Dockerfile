@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Dependências do servidor (leves). A integração de KPIs roda fora da imagem.
+# Dependências do servidor (leves)
 RUN pip install --no-cache-dir Flask==3.0.3 Werkzeug==3.0.3 waitress==3.0.0
 
 # Código da aplicação
