@@ -520,6 +520,7 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
           <button class="btn btn-outline btn-sm" onclick="quickAdd('announcement')">📣 Aviso</button>
           <button class="btn btn-outline btn-sm" onclick="quickAdd('media')">🖼️ Mídia</button>
           <button class="btn btn-outline btn-sm" onclick="quickAdd('gallery')">🗂️ Galeria</button>
+          <button class="btn btn-outline btn-sm" onclick="quickAddFromLibrary()">📁 Biblioteca</button>
           <button class="btn btn-outline btn-sm" onclick="quickAdd('calendar')">📅 Evento</button>
         </div>
         <div class="timeline-wrap" id="tl-cards"
@@ -2063,6 +2064,12 @@ async function toggleMediaLibrary() {
   } catch (e) {
     grid.innerHTML = '<div style="grid-column:1/-1;color:var(--red);font-size:13px;">Servidor indisponível.</div>';
   }
+}
+
+// Atalho "📁 Biblioteca" na montagem da grade: abre o formulário de mídia já com a biblioteca expandida
+function quickAddFromLibrary() {
+  openMediaModal();
+  toggleMediaLibrary();
 }
 
 function pickMediaFromLibrary(url) {

@@ -8,6 +8,10 @@ services:
       # Persistem entre reinícios: conteúdo, usuários/senha, sessão e uploads
       - ./data:/app/data
       - ./uploads:/app/uploads
+      # Código ao vivo: alterações no admin/display aparecem só atualizando o navegador
+      # (mudanças no backend exigem 'docker compose restart')
+      - ./frontend:/app/frontend
+      - ./backend:/app/backend
     environment:
       - TV_PORT=8080
     restart: unless-stopped
