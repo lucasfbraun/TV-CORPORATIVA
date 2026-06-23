@@ -660,7 +660,9 @@ function getDuration(idx) {
   const content = getContent();
   const defaultDur = content.slide_duration || content.config?.slide_duration || 12;
   const slide = slides[idx];
-  return (slide?.duration && slide.duration > 0) ? slide.duration : defaultDur;
+  if (slide?.duration && slide.duration > 0) return slide.duration;
+  if (slide?.type === 'integration') return 120;  // playlist: permanece mais tempo
+  return defaultDur;
 }
 
 // Verifica se o slide atual é um vídeo sem duração forçada
@@ -755,6 +757,10 @@ function goTo(idx) {
   }
   dots.forEach((d,i) => d.classList.toggle('active', i===current));
 
+  // Integração (playlist) = modo aplicação: sem barra de progresso visível
+  const pbw = document.getElementById('progress-bar-wrap');
+  if (pbw) pbw.style.display = (slides[current]?.type === 'integration') ? 'none' : '';
+
   scheduleNext();
 }
 
@@ -784,6 +790,12 @@ function scheduleNext(forceTimer = false) {
   clearTimeout(timer);
   clearInterval(countdownInterval);
   const bar = document.getElementById('progress-bar');
+
+  // Integração que é o único conteúdo da grade: fica fixa (a playlist alterna sozinha)
+  if (slides[current]?.type === 'integration' && slides.length <= 1) {
+    setTimeRemaining('');
+    return;
+  }
 
   if (!forceTimer && currentIsVideo()) {
     // Vídeo sem duração forçada: barra indeterminada, avança pelo evento 'ended'

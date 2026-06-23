@@ -664,21 +664,87 @@ def _public_integration(iid, c):
     }
 
 
-def _grafana_login(page, username, password):
-    """Preenche o formulário de login do Grafana."""
+# Grafana fixo (nativo) — só as credenciais são editáveis pelo usuário
+GRAFANA_URL = ("https://monitoramento.techmaster.inf.br/d/SKHAi2oGz/incidentes"
+               "?orgId=4&from=now-6h&to=now&timezone=America%2FSao_Paulo"
+               "&var-GRUPO=$__all&var-HOST=$__all&refresh=30s")
+GRAFANA_PLAYLIST = "FLEXIVEL"
+GRAFANA_AUTH_FILE = os.path.join(DATA_DIR, "grafana_auth.json")
+
+
+def ensure_grafana_integration():
+    """Garante a integração nativa 'grafana' (mantém credenciais; URL/playlist são fixos)."""
+    d = load_integrations()
+    g = d.get("grafana", {})
+    g["type"] = "grafana"
+    g.setdefault("name", "Grafana")
+    g["url"] = GRAFANA_URL
+    g["playlist"] = GRAFANA_PLAYLIST
+    g.setdefault("interval", 20)
+    g.setdefault("username", "")
+    g.setdefault("password", "")
+    g.setdefault("active", True)
+    d["grafana"] = g
+    save_integrations(d)
+    return g
+
+
+def _looks_login(page):
+    if "/login" in page.url.lower():
+        return True
     try:
-        page.fill('input[name="user"]', username, timeout=8000)
+        return page.locator('input[type="password"]').count() > 0
     except Exception:
-        page.fill('input[name="username"], input[type="text"]', username, timeout=8000)
-    page.fill('input[name="password"], input[type="password"]', password, timeout=8000)
-    for sel in ('button[type="submit"]', 'button[aria-label="Login button"]',
-                'button:has-text("Log in")', 'button:has-text("Entrar")'):
+        return False
+
+
+def _grafana_login(page, base, username, password):
+    """Login no Grafana (mesmos seletores do script do cliente)."""
+    if "/login" not in page.url.lower():
+        page.goto(base + "/login", wait_until="domcontentloaded", timeout=30000)
+    page.wait_for_selector('input[name="user"], input[name="username"]', timeout=15000)
+    page.fill('input[name="user"], input[name="username"]', username)
+    page.fill('input[name="password"], input[type="password"]', password)
+    for sel in ('button[type="submit"]', 'button:has-text("Log in")',
+                'button:has-text("Entrar")', 'button[aria-label="Login button"]'):
         try:
             page.click(sel, timeout=2500)
             break
         except Exception:
             continue
-    page.wait_for_timeout(3500)
+    page.wait_for_timeout(5000)
+    if _looks_login(page):
+        raise RuntimeError("login falhou — verifique usuário/senha")
+
+
+def _grafana_start_playlist(page, base, name):
+    """Inicia a playlist. 1º tenta via API (robusto); senão, clica na interface."""
+    try:
+        resp = page.context.request.get(base + "/api/playlists")
+        if resp.ok:
+            for pl in resp.json():
+                if (pl.get("name") or "").strip().lower() == (name or "").strip().lower():
+                    key = pl.get("uid") or pl.get("id")
+                    page.goto(f"{base}/playlists/play/{key}?kiosk", wait_until="domcontentloaded", timeout=60000)
+                    page.wait_for_timeout(4000)
+                    return True
+    except Exception as e:  # noqa: BLE001
+        log.warning("Grafana playlists API: %s", e)
+    # Fallback: navegação pela interface (igual ao script original)
+    try:
+        page.goto(base + "/playlists", wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(2500)
+        for sel in (f'button:has-text("Start {name}")', 'button:has-text("Start playlist")',
+                    'button[aria-label*="Start"]', 'a:has-text("Start")'):
+            try:
+                page.click(sel, timeout=4000)
+                page.wait_for_timeout(3500)
+                return True
+            except Exception:
+                continue
+    except Exception as e:  # noqa: BLE001
+        log.warning("Grafana playlist UI: %s", e)
+    return False
 
 
 def integration_worker(iid, stop):
@@ -691,25 +757,29 @@ def integration_worker(iid, stop):
         if not cfg or not cfg.get("active", True):
             time.sleep(5)
             continue
+        is_grafana = cfg.get("type", "grafana") == "grafana"
+        url = GRAFANA_URL if is_grafana else cfg.get("url", "")
         interval = max(5, int(cfg.get("interval") or 20))
         try:
             with sync_playwright() as p:
                 browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
-                ctx = browser.new_context(viewport={"width": 1920, "height": 1080}, ignore_https_errors=True)
+                opts = {"viewport": {"width": 1920, "height": 1080}, "ignore_https_errors": True,
+                        "locale": "pt-BR", "timezone_id": "America/Sao_Paulo"}
+                if is_grafana and os.path.isfile(GRAFANA_AUTH_FILE):
+                    opts["storage_state"] = GRAFANA_AUTH_FILE  # reaproveita a sessão salva
+                ctx = browser.new_context(**opts)
                 page = ctx.new_page()
-                u = urlparse(cfg["url"])
-                base = f"{u.scheme}://{u.netloc}"
-                # Grafana: modo kiosk (esconde menus/cabeçalho → só o dashboard, como F11)
-                target = cfg["url"]
-                if cfg.get("type", "grafana") == "grafana" and "kiosk" not in target:
-                    target += ("&kiosk" if "?" in target else "?kiosk")
-                page.goto(target, wait_until="domcontentloaded", timeout=45000)
-                # Se exigiu login, autentica e volta para a URL alvo (playlist)
-                if "/login" in page.url or page.query_selector('input[type="password"]'):
-                    if "/login" not in page.url:
-                        page.goto(base + "/login", wait_until="domcontentloaded", timeout=30000)
-                    _grafana_login(page, cfg.get("username", ""), cfg.get("password", ""))
-                    page.goto(target, wait_until="domcontentloaded", timeout=45000)
+                base = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
+                page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(2500)
+                if _looks_login(page):
+                    if iid in _intg_threads:
+                        _intg_threads[iid]["status"] = "logando"
+                    _grafana_login(page, base, cfg.get("username", ""), cfg.get("password", ""))
+                    if is_grafana:
+                        ctx.storage_state(path=GRAFANA_AUTH_FILE)  # salva a sessão p/ próximos boots
+                if is_grafana:
+                    _grafana_start_playlist(page, base, cfg.get("playlist") or GRAFANA_PLAYLIST)
                 page.wait_for_timeout(5000)
                 if iid in _intg_threads:
                     _intg_threads[iid]["status"] = "ok"
@@ -731,7 +801,7 @@ def integration_worker(iid, stop):
             log.warning("Integração %s: %s", iid, e)
             if iid in _intg_threads:
                 _intg_threads[iid]["status"] = f"erro: {str(e)[:120]}"
-            time.sleep(15)
+            time.sleep(20)
 
 
 def start_worker(iid):
@@ -751,6 +821,7 @@ def stop_worker(iid):
 
 
 def start_all_workers():
+    ensure_grafana_integration()  # garante a integração nativa do Grafana
     for iid, cfg in load_integrations().items():
         if cfg.get("active", True):
             start_worker(iid)
@@ -791,7 +862,8 @@ def update_integration(iid):
     if not c:
         return jsonify({"error": "Integração não encontrada"}), 404
     data = request.get_json(silent=True) or {}
-    for k in ("name", "url", "username", "active", "type"):
+    keys = ("name", "username", "active", "type") if iid == "grafana" else ("name", "url", "username", "active", "type")
+    for k in keys:
         if k in data:
             c[k] = data[k]
     if "interval" in data:
@@ -799,6 +871,11 @@ def update_integration(iid):
     if data.get("password"):  # só troca a senha se uma nova for enviada
         c["password"] = data["password"]
     save_integrations(d)
+    if iid == "grafana":  # credenciais podem ter mudado → descarta a sessão salva
+        try:
+            os.remove(GRAFANA_AUTH_FILE)
+        except OSError:
+            pass
     start_worker(iid) if c.get("active", True) else stop_worker(iid)
     return jsonify(_public_integration(iid, c))
 

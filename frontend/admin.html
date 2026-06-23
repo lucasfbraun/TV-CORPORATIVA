@@ -537,7 +537,7 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
           <button class="btn btn-outline btn-sm" onclick="quickAdd('gallery')">🗂️ Galeria</button>
           <button class="btn btn-outline btn-sm" onclick="quickAddFromLibrary()">📁 Biblioteca</button>
           <button class="btn btn-outline btn-sm" onclick="openCaptureModal()">🌐 Página (URL)</button>
-          <button class="btn btn-outline btn-sm" onclick="openIntgSlideModal()">🔌 Integração</button>
+          <button class="btn btn-outline btn-sm" onclick="addGrafanaSlide()">📊 Grafana</button>
           <button class="btn btn-outline btn-sm" onclick="openNewsModal()">📰 Notícias</button>
           <button class="btn btn-outline btn-sm" onclick="quickAdd('calendar')">📅 Evento</button>
         </div>
@@ -614,18 +614,21 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
 
     <div class="panel" id="panel-integrations">
       <div class="card">
-        <div class="card-title"><span>🔌</span> Integrações (login automático)</div>
-        <p style="font-size:13px;color:var(--dim);margin-bottom:14px;">
-          Cadastre páginas que exigem login (ex.: Grafana). O servidor autentica com o usuário/senha e captura a tela
-          de tempos em tempos. Depois é só adicionar na grade em <b>Montar Grade → 🔌 Integração</b>.
+        <div class="card-title"><span>🔌</span> Integrações</div>
+        <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+          Integrações nativas com login automático. Você só precisa manter as <b>credenciais</b> atualizadas.
+          Para exibir na TV, adicione em <b>Montar Grade → 📊 Grafana</b>.
         </p>
-        <div class="action-row-end" style="margin-bottom:14px;">
-          <button class="btn btn-primary" onclick="openIntegrationModal()">➕ Nova Integração</button>
+        <div style="display:flex;align-items:center;gap:16px;border:1px solid #e0e7f0;border-radius:12px;padding:16px;max-width:560px;">
+          <div style="width:48px;height:48px;border-radius:10px;background:#F46800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M12 2l1.6 3.6L17 7l-3.4 1.4L12 12l-1.6-3.6L7 7l3.4-1.4L12 2zm6 6l1 2.2L21 11l-2 1-1 2-1-2-2-1 2-.8L18 8zM6 13l1.2 2.6L10 17l-2.8 1.4L6 21l-1.2-2.6L2 17l2.8-1.4L6 13z"/></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="font-weight:700;font-size:15px;">Grafana</div>
+            <div id="grafana-status" style="font-size:12px;color:var(--dim);">carregando...</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openGrafanaModal()">🔑 Credenciais</button>
         </div>
-        <table class="tbl">
-          <thead><tr><th>Nome</th><th>Tipo</th><th>URL</th><th>Status</th><th>Ações</th></tr></thead>
-          <tbody id="intg-tbody"></tbody>
-        </table>
       </div>
     </div>
 
@@ -676,6 +679,33 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
 </div><!-- /app -->
 
 <!-- ═══ MODAIS ═══════════════════════════════════════════ -->
+
+<!-- Modal: Credenciais do Grafana -->
+<div class="modal-overlay" id="modal-grafana">
+  <div class="modal">
+    <div class="modal-title">
+      <span>📊</span> <span>Credenciais do Grafana</span>
+      <button class="modal-close" onclick="closeModal('modal-grafana')">×</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Usuário</label>
+      <input class="form-input" id="grafana-user" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Senha</label>
+      <input class="form-input" id="grafana-pass" type="password" autocomplete="new-password" placeholder="(em branco = manter a atual)">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Atualizar o print a cada (segundos)</label>
+      <input class="form-input" type="number" id="grafana-interval" min="10" max="600" value="20">
+    </div>
+    <small style="display:block;color:var(--dim);font-size:11px;margin:-4px 0 12px;">🔒 As credenciais ficam só no servidor. Ao salvar, ele faz login novamente e reinicia a captura.</small>
+    <div class="action-row-end">
+      <button class="btn btn-outline" onclick="closeModal('modal-grafana')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveGrafanaCreds()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal: Integração (cadastro) -->
 <div class="modal-overlay" id="modal-integration">
@@ -2369,35 +2399,59 @@ function saveCapture() {
 }
 
 // ── Integrações (login automático) ────────────────────────
-let _integrations = [];
-
-function intgStatusBadge(s) {
-  const ok = s === 'ok';
-  const color = ok ? 'var(--green)' : (s && s.startsWith('erro') ? 'var(--red)' : 'var(--dim)');
-  return `<span style="color:${color};font-size:12px;" title="${(s||'').replace(/"/g,'')}">${ok ? '🟢 ativo' : (s || 'parado')}</span>`;
-}
+let _grafana = null;
 
 async function loadIntegrations() {
-  const tb = document.getElementById('intg-tbody');
-  if (!tb) return;
-  tb.innerHTML = '<tr><td colspan="5" style="color:var(--dim);">Carregando...</td></tr>';
+  const st = document.getElementById('grafana-status');
+  if (!st) return;
   try {
     const r = await fetch('/api/integrations');
     if (r.status === 401) { location.href = '/login?next=/admin'; return; }
-    _integrations = await r.json();
-    if (!_integrations.length) { tb.innerHTML = '<tr><td colspan="5" style="color:var(--dim);">Nenhuma integração. Clique em "Nova Integração".</td></tr>'; return; }
-    tb.innerHTML = _integrations.map(i => `
-      <tr>
-        <td><b>${i.name}</b></td>
-        <td>${i.type}</td>
-        <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${i.url}</td>
-        <td>${intgStatusBadge(i.status)}</td>
-        <td>
-          <button class="btn btn-outline btn-sm" onclick="openIntegrationModal('${i.id}')">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteIntegration('${i.id}')">🗑️</button>
-        </td>
-      </tr>`).join('');
-  } catch (e) { tb.innerHTML = '<tr><td colspan="5" style="color:var(--red);">Servidor indisponível.</td></tr>'; }
+    const list = await r.json();
+    _grafana = (Array.isArray(list) ? list : []).find(i => i.type === 'grafana' || i.id === 'grafana') || null;
+    if (!_grafana) { st.textContent = 'não configurado'; st.style.color = 'var(--dim)'; return; }
+    const s = _grafana.status || 'parado';
+    const ok = s === 'ok';
+    const cred = _grafana.has_password ? 'credenciais definidas' : 'sem credenciais — clique em 🔑 Credenciais';
+    st.textContent = `${ok ? '🟢 ativo' : (s.startsWith('erro') ? '🔴 ' + s : '⚪ ' + s)} · ${cred}`;
+    st.style.color = ok ? 'var(--green)' : (s.startsWith('erro') ? 'var(--red)' : 'var(--dim)');
+  } catch (e) {
+    st.textContent = '⚠️ servidor indisponível — reconstrua a imagem (docker compose up -d --build)';
+    st.style.color = 'var(--red)';
+  }
+}
+
+function openGrafanaModal() {
+  document.getElementById('grafana-user').value = _grafana?.username || '';
+  document.getElementById('grafana-pass').value = '';
+  document.getElementById('grafana-interval').value = _grafana?.interval || 20;
+  openModal('modal-grafana');
+}
+
+async function saveGrafanaCreds() {
+  const body = {
+    username: document.getElementById('grafana-user').value.trim(),
+    interval: parseInt(document.getElementById('grafana-interval').value) || 20,
+  };
+  const pass = document.getElementById('grafana-pass').value;
+  if (pass) body.password = pass;
+  try {
+    const r = await fetch('/api/integrations/grafana', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (!r.ok) { const d = await r.json(); toast('❌ ' + (d.error || 'Erro')); return; }
+    closeModal('modal-grafana');
+    toast('Credenciais salvas! O servidor está fazendo login...');
+    setTimeout(loadIntegrations, 2000);
+  } catch (e) { toast('❌ Sem conexão (o backend foi reconstruído?).'); }
+}
+
+// Adiciona o Grafana como slide na grade (direto, sem tempo fixo)
+function addGrafanaSlide() {
+  const obj = { id: nextSlideId(), type: 'integration', active: true,
+                integration_id: 'grafana', name: 'Grafana', duration: null };
+  pushOrUpdateSlide(obj, null);
+  save(DATA); renderAll(); toast('📊 Grafana adicionado à grade!');
 }
 
 function openIntegrationModal(id=null) {
@@ -2616,7 +2670,7 @@ function renderTimeline() {
   const legendEl  = document.getElementById('tl-legend');
   if (!barEl || !cardsEl) return;
 
-  const labels = {announcement:'Aviso',kpi:'KPI',calendar:'Agenda',media:'Mídia',gallery:'Galeria',news:'Notícias',urlshot:'Página',integration:'Integração'};
+  const labels = {announcement:'Aviso',kpi:'KPI',calendar:'Agenda',media:'Mídia',gallery:'Galeria',news:'Notícias',urlshot:'Página',integration:'Grafana'};
   const durs   = slides.map(s => (s.duration && s.duration > 0) ? s.duration : defDur);
   const total  = durs.reduce((a,b) => a+b, 0) || 1;
 
@@ -2741,7 +2795,7 @@ function editSlide(id) {
   else if (s.type === 'gallery') openGalleryModal(id);
   else if (s.type === 'news') openNewsModal(id);
   else if (s.type === 'urlshot') openCaptureModal(id);
-  else if (s.type === 'integration') openIntgSlideModal(id);
+  else if (s.type === 'integration') { showPanel('integrations'); toast('Gerencie o Grafana (credenciais) aqui.'); }
   else if (s.type === 'calendar') { showPanel('calendar'); toast('Gerencie os eventos da agenda. Volte em "Montar Grade".'); }
 }
 
