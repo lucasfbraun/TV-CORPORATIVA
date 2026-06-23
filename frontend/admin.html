@@ -338,23 +338,25 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
     <div class="nav-group">
       <div class="nav-label">Principal</div>
       <button class="nav-btn active" onclick="showPanel('dashboard',event)">🏠 Dashboard</button>
-      <button class="nav-btn" onclick="showPanel('tvs',event)">📺 TVs</button>
+      <button class="nav-btn" data-area="grade" onclick="showPanel('tvs',event)">📺 TVs</button>
     </div>
-    <div class="nav-group">
+    <div class="nav-group" data-area="grade">
       <div class="nav-label">Grade de Programação</div>
-      <button class="nav-btn" onclick="showPanel('grades',event)">📋 Grades</button>
-      <button class="nav-btn" onclick="showPanel('timeline',event)">🎬 Montar Grade</button>
-      <button class="nav-btn" onclick="showPanel('biblioteca',event)">📁 Biblioteca</button>
+      <button class="nav-btn" data-area="grade" onclick="showPanel('grades',event)">📋 Grades</button>
+      <button class="nav-btn" data-area="grade" onclick="showPanel('timeline',event)">🎬 Montar Grade</button>
+      <button class="nav-btn" data-area="biblioteca" onclick="showPanel('biblioteca',event)">📁 Biblioteca</button>
     </div>
-    <div class="nav-group">
+    <div class="nav-group" data-area="rodape">
       <div class="nav-label">Rodapé</div>
-      <button class="nav-btn" onclick="showPanel('rodapes',event)">📢 Barra inferior</button>
+      <button class="nav-btn" data-area="rodape" onclick="showPanel('rodapes',event)">📢 Barra inferior</button>
     </div>
-    <div class="nav-group">
+    <div class="nav-group" data-area="sistema">
       <div class="nav-label">Sistema</div>
-      <button class="nav-btn" onclick="showPanel('users',event)">👤 Usuários</button>
-      <button class="nav-btn" onclick="showPanel('integrations',event)">🔌 Integrações</button>
-      <button class="nav-btn" onclick="showPanel('config',event)">⚙️ Configurações</button>
+      <button class="nav-btn" data-area="sistema" onclick="showPanel('users',event)">👤 Usuários</button>
+      <button class="nav-btn" data-area="sistema" onclick="showPanel('profiles',event)">🛡️ Perfis de Acesso</button>
+      <button class="nav-btn" data-area="sistema" onclick="showPanel('integrations',event)">🔌 Integrações</button>
+      <button class="nav-btn" data-area="sistema" onclick="showPanel('smtp',event)">✉️ E-mail (SMTP)</button>
+      <button class="nav-btn" data-area="sistema" onclick="showPanel('config',event)">⚙️ Configurações</button>
     </div>
   </nav>
   <div id="sidebar-grade-pill">
@@ -606,8 +608,24 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
           <button class="btn btn-primary" onclick="openUserModal()">➕ Novo Usuário</button>
         </div>
         <table class="tbl">
-          <thead><tr><th>Usuário</th><th>Nome</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Usuário</th><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Ações</th></tr></thead>
           <tbody id="user-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-profiles">
+      <div class="card">
+        <div class="card-title"><span>🛡️</span> Perfis de Acesso</div>
+        <p style="font-size:13px;color:var(--dim);margin-bottom:14px;">
+          Perfis definem o que cada usuário pode acessar. Marque as áreas liberadas e vincule o perfil ao criar/editar o usuário.
+        </p>
+        <div class="action-row-end" style="margin-bottom:14px;">
+          <button class="btn btn-primary" onclick="openProfileModal()">➕ Novo Perfil</button>
+        </div>
+        <table class="tbl">
+          <thead><tr><th>Perfil</th><th>Áreas liberadas</th><th>Usuários</th><th>Ações</th></tr></thead>
+          <tbody id="profile-tbody"></tbody>
         </table>
       </div>
     </div>
@@ -628,6 +646,59 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
             <div id="grafana-status" style="font-size:12px;color:var(--dim);">carregando...</div>
           </div>
           <button class="btn btn-primary btn-sm" onclick="openGrafanaModal()">🔑 Credenciais</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-smtp">
+      <div class="card">
+        <div class="card-title"><span>✉️</span> Servidor de E-mail (SMTP)</div>
+        <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+          Usado para enviar o link de <b>redefinição de senha</b> quando um usuário esquece a senha.
+          A senha do SMTP fica guardada apenas no servidor.
+        </p>
+        <div id="smtp-status" style="font-size:13px;margin-bottom:14px;color:var(--dim);">carregando...</div>
+        <div class="form-row">
+          <div class="form-group" style="flex:2;">
+            <label class="form-label">Servidor (host)</label>
+            <input class="form-input" id="smtp-host" placeholder="ex: smtp.gmail.com">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label class="form-label">Porta</label>
+            <input class="form-input" id="smtp-port" type="number" value="587">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label class="form-label">Segurança</label>
+            <select class="form-input" id="smtp-security">
+              <option value="starttls">STARTTLS (587)</option>
+              <option value="ssl">SSL/TLS (465)</option>
+              <option value="none">Nenhuma</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:1;">
+            <label class="form-label">Usuário (login SMTP)</label>
+            <input class="form-input" id="smtp-username" placeholder="ex: envios@empresa.com.br" autocomplete="off">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label class="form-label">Senha (vazio = manter)</label>
+            <input class="form-input" id="smtp-password" type="password" placeholder="••••••••" autocomplete="new-password">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:1;">
+            <label class="form-label">E-mail remetente (de)</label>
+            <input class="form-input" id="smtp-from-email" placeholder="ex: ti@grupoflexivel.com.br">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label class="form-label">Nome do remetente</label>
+            <input class="form-input" id="smtp-from-name" placeholder="TV Corporativa">
+          </div>
+        </div>
+        <div class="action-row-end" style="gap:8px;">
+          <button class="btn btn-outline" onclick="testSmtp()">📨 Enviar teste</button>
+          <button class="btn btn-primary" onclick="saveSmtp()">💾 Salvar</button>
         </div>
       </div>
     </div>
@@ -906,12 +977,45 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
       <input class="form-input" id="user-name" placeholder="ex: Maria Silva">
     </div>
     <div class="form-group">
+      <label class="form-label">E-mail <span style="color:var(--red);">*</span></label>
+      <input class="form-input" id="user-email" type="email" placeholder="ex: maria.silva@grupoflexivel.com.br">
+      <small style="color:var(--dim);font-size:11px;">Obrigatório. Usado para redefinição de senha.</small>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Perfil de acesso</label>
+      <select class="form-input" id="user-profile"></select>
+    </div>
+    <div class="form-group">
       <label class="form-label" id="user-pass-label">Senha</label>
       <input class="form-input" id="user-password" type="password" placeholder="Mínimo 6 caracteres">
     </div>
     <div class="action-row-end">
       <button class="btn btn-outline" onclick="closeModal('modal-user')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveUser()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Perfil de acesso -->
+<div class="modal-overlay" id="modal-profile">
+  <div class="modal">
+    <div class="modal-title">
+      <span>🛡️</span> <span id="profile-modal-title">Novo Perfil</span>
+      <button class="modal-close" onclick="closeModal('modal-profile')">×</button>
+    </div>
+    <input type="hidden" id="profile-edit-id">
+    <div class="form-group">
+      <label class="form-label">Nome do perfil</label>
+      <input class="form-input" id="profile-name" placeholder="ex: Operador">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Áreas liberadas</label>
+      <div id="profile-perms" style="display:flex;flex-direction:column;gap:8px;margin-top:4px;"></div>
+      <small id="profile-locked-hint" style="display:none;color:var(--dim);font-size:11px;">O perfil Administrador sempre tem acesso total.</small>
+    </div>
+    <div class="action-row-end">
+      <button class="btn btn-outline" onclick="closeModal('modal-profile')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveProfile()">💾 Salvar</button>
     </div>
   </div>
 </div>
@@ -1378,15 +1482,41 @@ const PANEL_TITLES = {
   announcements:'Avisos', calendar:'Agenda',
   media:'Mídia', gallery:'Galeria', timeline:'Grade de Programação',
   biblioteca:'Biblioteca de Arquivos', rodapes:'Barra inferior',
-  integrations:'Integrações', config:'Configurações'
+  users:'Usuários', profiles:'Perfis de Acesso',
+  integrations:'Integrações', smtp:'Servidor de E-mail (SMTP)', config:'Configurações'
 };
 
+// Permissões do usuário logado (preenchido em loadCurrentUser)
+let MY_PERMS = null;          // null = ainda não carregado (não restringe)
+const PANEL_AREA = {
+  tvs:'grade', grades:'grade', timeline:'grade',
+  biblioteca:'biblioteca', rodapes:'rodape',
+  users:'sistema', profiles:'sistema', integrations:'sistema', smtp:'sistema', config:'sistema',
+};
+
+function hasPerm(area) { return !MY_PERMS || MY_PERMS.includes(area); }
+
+// Esconde da navegação as áreas sem permissão
+function applyPermGating() {
+  if (!MY_PERMS) return;
+  document.querySelectorAll('nav [data-area]').forEach(el => {
+    const area = el.getAttribute('data-area');
+    el.style.display = MY_PERMS.includes(area) ? '' : 'none';
+  });
+}
+
 function showPanel(id, ev) {
+  const area = PANEL_AREA[id];
+  if (area && !hasPerm(area)) { toast('🔒 Você não tem acesso a esta área.'); return; }
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('panel-' + id)?.classList.add('active');
   if (ev?.currentTarget) ev.currentTarget.classList.add('active');
   document.getElementById('topbar-title').textContent = PANEL_TITLES[id] || id;
+  if (id === 'profiles') loadProfiles();
+  if (id === 'smtp') loadSmtp();
+  if (id === 'users') loadUsers();
+  if (id === 'integrations') loadIntegrations();
   // Show grade pill for content panels
   const inContent = CONTENT_PANELS.includes(id);
   document.getElementById('sidebar-grade-pill').style.display = inContent ? 'block' : 'none';
@@ -3141,7 +3271,9 @@ async function loadCurrentUser() {
     const s = await r.json();
     if (s.authenticated) {
       const el = document.getElementById('current-user');
-      if (el) el.textContent = '👤 ' + (s.name || s.user);
+      if (el) el.textContent = '👤 ' + (s.name || s.user) + (s.profile_name ? ' · ' + s.profile_name : '');
+      MY_PERMS = Array.isArray(s.perms) ? s.perms : null;
+      applyPermGating();
     }
   } catch (e) {}
 }
@@ -3180,47 +3312,66 @@ async function saveOwnPassword() {
 // ═══════════════════════════════════════════════════════════
 // USUÁRIOS (logins do painel)
 // ═══════════════════════════════════════════════════════════
+let _usersCache = [];
+let _profilesCache = [];
+let _permAreas = { grade:'Montar grade / TVs / grades', biblioteca:'Biblioteca e mídias',
+                   rodape:'Barra inferior (rodapé)', sistema:'Usuários, perfis, SMTP e integrações' };
+
 async function loadUsers() {
   const tb = document.getElementById('user-tbody');
   if (!tb) return;
-  tb.innerHTML = '<tr><td colspan="3" style="color:var(--dim);">Carregando...</td></tr>';
+  tb.innerHTML = '<tr><td colspan="5" style="color:var(--dim);">Carregando...</td></tr>';
   try {
+    // garante perfis em cache para o select e para a coluna
+    if (!_profilesCache.length) await loadProfilesCache();
     const r = await fetch('/api/users');
     if (r.status === 401) { location.href = '/login?next=/admin'; return; }
+    if (r.status === 403) { tb.innerHTML = '<tr><td colspan="5" style="color:var(--dim);">Sem permissão.</td></tr>'; return; }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const users = await r.json();
+    _usersCache = users;
     if (!users.length) {
-      tb.innerHTML = '<tr><td colspan="3" style="color:var(--dim);">Nenhum usuário.</td></tr>';
+      tb.innerHTML = '<tr><td colspan="5" style="color:var(--dim);">Nenhum usuário.</td></tr>';
       return;
     }
-    tb.innerHTML = users.map(u => {
-      const nm = (u.name || '').replace(/'/g, "\\'");
-      return `
+    tb.innerHTML = users.map(u => `
       <tr>
         <td style="font-family:monospace;">${u.username}</td>
         <td>${u.name || ''}</td>
+        <td>${u.email || '<span style="color:var(--red);">— sem e-mail —</span>'}</td>
+        <td>${u.profile_name || u.profile || ''}</td>
         <td>
-          <button class="btn btn-outline btn-sm" onclick="openUserModal('${u.username}','${nm}')">✏️ Editar</button>
+          <button class="btn btn-outline btn-sm" onclick="openUserModal('${u.username}')">✏️ Editar</button>
           <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.username}')">🗑️</button>
         </td>
-      </tr>`;
-    }).join('');
+      </tr>`).join('');
   } catch (e) {
-    tb.innerHTML = '<tr><td colspan="3" style="color:var(--red);">Erro ao carregar usuários.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="5" style="color:var(--red);">Erro ao carregar usuários.</td></tr>';
   }
 }
 
-function openUserModal(username = '', name = '') {
+function _fillProfileSelect(selectedId) {
+  const sel = document.getElementById('user-profile');
+  if (!sel) return;
+  sel.innerHTML = _profilesCache.map(p =>
+    `<option value="${p.id}" ${p.id === selectedId ? 'selected' : ''}>${p.name}</option>`).join('');
+}
+
+async function openUserModal(username = '') {
   const isEdit = !!username;
+  const u = isEdit ? (_usersCache.find(x => x.username === username) || {}) : {};
   document.getElementById('user-modal-title').textContent = isEdit ? 'Editar Usuário' : 'Novo Usuário';
   document.getElementById('user-edit-username').value = username;
   const userInput = document.getElementById('user-username');
   userInput.value = username;
   userInput.disabled = isEdit;            // login não muda depois de criado
-  document.getElementById('user-name').value = name;
+  document.getElementById('user-name').value = u.name || '';
+  document.getElementById('user-email').value = u.email || '';
   document.getElementById('user-password').value = '';
   document.getElementById('user-pass-label').textContent = isEdit ? 'Nova senha (vazio = manter)' : 'Senha';
   document.getElementById('user-username-hint').style.display = isEdit ? 'none' : 'block';
+  if (!_profilesCache.length) await loadProfilesCache();
+  _fillProfileSelect(u.profile || 'administrador');
   openModal('modal-user');
 }
 
@@ -3229,18 +3380,23 @@ async function saveUser() {
   const isEdit = !!editUser;
   const username = document.getElementById('user-username').value.trim().toLowerCase();
   const name = document.getElementById('user-name').value.trim();
+  const email = document.getElementById('user-email').value.trim().toLowerCase();
+  const profile = document.getElementById('user-profile').value;
   const password = document.getElementById('user-password').value;
+  const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+  if (!emailOk) { toast('❌ Informe um e-mail válido.'); return; }
+  if (!isEdit && password.length < 6) { toast('❌ A senha deve ter ao menos 6 caracteres.'); return; }
   try {
     let r;
     if (isEdit) {
       r = await fetch('/api/users/' + encodeURIComponent(editUser), {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, password: password || undefined })
+        body: JSON.stringify({ name, email, profile, password: password || undefined })
       });
     } else {
       r = await fetch('/api/users', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, name, password })
+        body: JSON.stringify({ username, name, email, profile, password })
       });
     }
     const data = await r.json();
@@ -3263,6 +3419,156 @@ async function deleteUser(username) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// PERFIS DE ACESSO
+// ═══════════════════════════════════════════════════════════
+async function loadProfilesCache() {
+  try {
+    const [pr, ar] = await Promise.all([fetch('/api/profiles'), fetch('/api/perm-areas')]);
+    if (pr.ok) _profilesCache = await pr.json();
+    if (ar.ok) _permAreas = await ar.json();
+  } catch (e) {}
+}
+
+async function loadProfiles() {
+  const tb = document.getElementById('profile-tbody');
+  if (!tb) return;
+  tb.innerHTML = '<tr><td colspan="4" style="color:var(--dim);">Carregando...</td></tr>';
+  await loadProfilesCache();
+  if (!_profilesCache.length) {
+    tb.innerHTML = '<tr><td colspan="4" style="color:var(--dim);">Nenhum perfil.</td></tr>';
+    return;
+  }
+  tb.innerHTML = _profilesCache.map(p => {
+    const areas = (p.perms || []).map(a => _permAreas[a] || a).join(', ') || '<span style="color:var(--dim);">nenhuma</span>';
+    const del = p.locked
+      ? '<button class="btn btn-danger btn-sm" disabled title="Perfil fixo">🗑️</button>'
+      : `<button class="btn btn-danger btn-sm" onclick="deleteProfile('${p.id}')">🗑️</button>`;
+    return `
+      <tr>
+        <td><b>${p.name}</b>${p.locked ? ' 🔒' : ''}</td>
+        <td style="font-size:13px;">${areas}</td>
+        <td style="text-align:center;">${p.in_use || 0}</td>
+        <td>
+          <button class="btn btn-outline btn-sm" onclick="openProfileModal('${p.id}')">✏️ Editar</button>
+          ${del}
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function openProfileModal(id = '') {
+  const isEdit = !!id;
+  const p = isEdit ? (_profilesCache.find(x => x.id === id) || {}) : { perms: [] };
+  document.getElementById('profile-modal-title').textContent = isEdit ? 'Editar Perfil' : 'Novo Perfil';
+  document.getElementById('profile-edit-id').value = id;
+  document.getElementById('profile-name').value = p.name || '';
+  const locked = !!p.locked;
+  document.getElementById('profile-locked-hint').style.display = locked ? 'block' : 'none';
+  const box = document.getElementById('profile-perms');
+  box.innerHTML = Object.keys(_permAreas).map(a => {
+    const checked = locked || (p.perms || []).includes(a) ? 'checked' : '';
+    return `<label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;">
+      <input type="checkbox" class="profile-perm" value="${a}" ${checked} ${locked ? 'disabled' : ''}>
+      <span>${_permAreas[a]}</span></label>`;
+  }).join('');
+  openModal('modal-profile');
+}
+
+async function saveProfile() {
+  const id = document.getElementById('profile-edit-id').value;
+  const isEdit = !!id;
+  const name = document.getElementById('profile-name').value.trim();
+  if (!name) { toast('❌ Informe o nome do perfil.'); return; }
+  const perms = Array.from(document.querySelectorAll('.profile-perm:checked')).map(c => c.value);
+  try {
+    const r = await fetch(isEdit ? '/api/profiles/' + encodeURIComponent(id) : '/api/profiles', {
+      method: isEdit ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, perms })
+    });
+    const data = await r.json();
+    if (!r.ok) { toast('❌ ' + (data.error || 'Erro ao salvar')); return; }
+    closeModal('modal-profile');
+    toast('✅ Perfil salvo!');
+    loadProfiles();
+  } catch (e) { toast('❌ Sem conexão com o servidor.'); }
+}
+
+async function deleteProfile(id) {
+  if (!confirm('Remover o perfil "' + id + '"?')) return;
+  try {
+    const r = await fetch('/api/profiles/' + encodeURIComponent(id), { method: 'DELETE' });
+    const data = await r.json();
+    if (!r.ok) { toast('❌ ' + (data.error || 'Erro ao remover')); return; }
+    toast('🗑️ Perfil removido.');
+    loadProfiles();
+  } catch (e) { toast('❌ Sem conexão com o servidor.'); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// SMTP (envio de e-mail)
+// ═══════════════════════════════════════════════════════════
+async function loadSmtp() {
+  const st = document.getElementById('smtp-status');
+  try {
+    const r = await fetch('/api/smtp');
+    if (r.status === 403) { if (st) st.textContent = 'Sem permissão.'; return; }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const c = await r.json();
+    document.getElementById('smtp-host').value = c.host || '';
+    document.getElementById('smtp-port').value = c.port || 587;
+    document.getElementById('smtp-security').value = c.security || 'starttls';
+    document.getElementById('smtp-username').value = c.username || '';
+    document.getElementById('smtp-password').value = '';
+    document.getElementById('smtp-from-email').value = c.from_email || '';
+    document.getElementById('smtp-from-name').value = c.from_name || 'TV Corporativa';
+    if (st) {
+      st.innerHTML = c.configured
+        ? '🟢 Configurado' + (c.has_password ? ' · senha definida' : ' · sem senha')
+        : '⚪ Ainda não configurado';
+      st.style.color = c.configured ? 'var(--green)' : 'var(--dim)';
+    }
+  } catch (e) { if (st) { st.textContent = '⚠️ Erro ao carregar.'; st.style.color = 'var(--red)'; } }
+}
+
+async function saveSmtp() {
+  const body = {
+    host: document.getElementById('smtp-host').value.trim(),
+    port: parseInt(document.getElementById('smtp-port').value) || 587,
+    security: document.getElementById('smtp-security').value,
+    username: document.getElementById('smtp-username').value.trim(),
+    from_email: document.getElementById('smtp-from-email').value.trim(),
+    from_name: document.getElementById('smtp-from-name').value.trim() || 'TV Corporativa',
+  };
+  const pass = document.getElementById('smtp-password').value;
+  if (pass) body.password = pass;
+  try {
+    const r = await fetch('/api/smtp', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (!r.ok) { toast('❌ ' + (data.error || 'Erro ao salvar')); return; }
+    toast('✅ SMTP salvo!');
+    loadSmtp();
+  } catch (e) { toast('❌ Sem conexão com o servidor.'); }
+}
+
+async function testSmtp() {
+  const to = prompt('Enviar e-mail de teste para qual endereço?\n(vazio = seu próprio e-mail)');
+  if (to === null) return;
+  toast('📨 Enviando teste...');
+  try {
+    const r = await fetch('/api/smtp/test', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: (to || '').trim() })
+    });
+    const data = await r.json();
+    if (!r.ok) { toast('❌ ' + (data.error || 'Falha no teste')); return; }
+    toast('✅ E-mail de teste enviado para ' + (data.sent_to || ''));
+  } catch (e) { toast('❌ Sem conexão com o servidor.'); }
+}
+
+// ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
 async function boot() {
@@ -3281,7 +3587,7 @@ document.querySelectorAll('.nav-btn').forEach(b => {
   if (b.textContent.includes('Integrações')) b.addEventListener('click', () => setTimeout(loadIntegrations, 100));
 });
 
-boot();
+boot();  // build: perfis de acesso, e-mail obrigatorio, SMTP, esqueci a senha
 </script>
 </body>
 </html>

@@ -30,7 +30,11 @@ import time
 import threading
 import urllib.request
 import urllib.parse
-from datetime import date
+import re
+import smtplib
+import ssl
+from email.message import EmailMessage
+from datetime import date, datetime, timedelta
 from functools import wraps
 
 from flask import (
@@ -47,9 +51,12 @@ FRONTEND_DIR = os.path.join(ROOT_DIR, "frontend")
 DATA_DIR     = os.path.join(ROOT_DIR, "data")
 UPLOADS_DIR  = os.path.join(ROOT_DIR, "uploads")
 
-CONTENT_FILE = os.path.join(DATA_DIR, "content.json")
-USERS_FILE   = os.path.join(DATA_DIR, "users.json")
-SECRET_FILE  = os.path.join(DATA_DIR, "secret.key")
+CONTENT_FILE  = os.path.join(DATA_DIR, "content.json")
+USERS_FILE    = os.path.join(DATA_DIR, "users.json")
+PROFILES_FILE = os.path.join(DATA_DIR, "profiles.json")
+SMTP_FILE     = os.path.join(DATA_DIR, "smtp.json")
+RESETS_FILE   = os.path.join(DATA_DIR, "password_resets.json")
+SECRET_FILE   = os.path.join(DATA_DIR, "secret.key")
 
 PORT = int(os.environ.get("TV_PORT", 8080))
 HOST = os.environ.get("TV_HOST", "0.0.0.0")
@@ -146,19 +153,76 @@ def get_secret_key():
     return key
 
 
+# ── Perfis de acesso (permissões por área) ────────────────────────────────────
+# Áreas que um perfil pode liberar. 'sistema' = gerir usuários, perfis, SMTP e integrações.
+PERM_AREAS = {
+    "grade":      "Montar grade / TVs / grades",
+    "biblioteca": "Biblioteca e mídias",
+    "rodape":     "Barra inferior (rodapé)",
+    "sistema":    "Usuários, perfis, SMTP e integrações",
+}
+ALL_PERMS = list(PERM_AREAS.keys())
+ADMIN_PROFILE_ID = "administrador"
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def load_profiles():
+    profiles = _read_json(PROFILES_FILE, None)
+    if not profiles:
+        profiles = {
+            ADMIN_PROFILE_ID: {"name": "Administrador", "perms": list(ALL_PERMS)},
+            "operador":       {"name": "Operador", "perms": ["grade", "biblioteca", "rodape"]},
+        }
+        _write_json(PROFILES_FILE, profiles)
+    # Garante que o perfil administrador exista e tenha todas as permissões
+    adm = profiles.get(ADMIN_PROFILE_ID)
+    if not adm:
+        profiles[ADMIN_PROFILE_ID] = {"name": "Administrador", "perms": list(ALL_PERMS)}
+        _write_json(PROFILES_FILE, profiles)
+    elif set(adm.get("perms", [])) != set(ALL_PERMS):
+        adm["perms"] = list(ALL_PERMS)
+        _write_json(PROFILES_FILE, profiles)
+    return profiles
+
+
+def save_profiles(profiles):
+    _write_json(PROFILES_FILE, profiles)
+
+
+def _profile_perms(profile_id):
+    prof = load_profiles().get(profile_id or "")
+    if not prof:
+        return []
+    return [p for p in prof.get("perms", []) if p in PERM_AREAS]
+
+
 def load_users():
     users = _read_json(USERS_FILE, None)
+    migrated = False
     if not users:
         # Cria usuário admin padrão no primeiro arranque
         users = {
             "admin": {
                 "password_hash": generate_password_hash("flexivel"),
                 "name": "Administrador",
+                "email": "",
+                "profile": ADMIN_PROFILE_ID,
                 "must_change": True,
             }
         }
         _write_json(USERS_FILE, users)
         log.warning("Usuário 'admin' criado com senha padrão 'flexivel'. TROQUE no primeiro login.")
+        return users
+    # Migração: usuários antigos sem perfil viram administrador; garante campo email
+    for uname, u in users.items():
+        if "profile" not in u or not u.get("profile"):
+            u["profile"] = ADMIN_PROFILE_ID
+            migrated = True
+        if "email" not in u:
+            u["email"] = ""
+            migrated = True
+    if migrated:
+        _write_json(USERS_FILE, users)
     return users
 
 
@@ -186,6 +250,33 @@ def login_required(fn):
     return wrapper
 
 
+def current_perms():
+    """Permissões do usuário logado (lista de áreas)."""
+    username = session.get("user")
+    if not username:
+        return []
+    user = load_users().get(username)
+    if not user:
+        return []
+    return _profile_perms(user.get("profile"))
+
+
+def require_perm(area):
+    """Protege rotas que exigem uma permissão de área específica."""
+    def deco(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            if not session.get("user"):
+                if request.path.startswith("/api/"):
+                    return jsonify({"error": "Não autenticado"}), 401
+                return redirect(url_for("login_page", next=request.path))
+            if area not in current_perms():
+                return jsonify({"error": "Você não tem permissão para esta ação"}), 403
+            return fn(*args, **kwargs)
+        return wrapper
+    return deco
+
+
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -205,6 +296,8 @@ def api_login():
             "status": "ok",
             "name": user.get("name", username),
             "must_change": user.get("must_change", False),
+            "profile": user.get("profile", ADMIN_PROFILE_ID),
+            "perms": _profile_perms(user.get("profile")),
         })
     return jsonify({"error": "Usuário ou senha inválidos"}), 401
 
@@ -222,11 +315,17 @@ def api_session():
         return jsonify({"authenticated": False})
     users = load_users()
     user = users.get(username, {})
+    profiles = load_profiles()
+    pid = user.get("profile", ADMIN_PROFILE_ID)
     return jsonify({
         "authenticated": True,
         "user": username,
         "name": user.get("name", username),
+        "email": user.get("email", ""),
         "must_change": user.get("must_change", False),
+        "profile": pid,
+        "profile_name": profiles.get(pid, {}).get("name", pid),
+        "perms": _profile_perms(pid),
     })
 
 
@@ -251,7 +350,15 @@ def api_change_password():
 
 # ── Gestão de usuários (logins) ───────────────────────────────────────────────
 def _public_user(username, user):
-    return {"username": username, "name": user.get("name", username)}
+    profiles = load_profiles()
+    pid = user.get("profile", ADMIN_PROFILE_ID)
+    return {
+        "username": username,
+        "name": user.get("name", username),
+        "email": user.get("email", ""),
+        "profile": pid,
+        "profile_name": profiles.get(pid, {}).get("name", pid),
+    }
 
 
 def _norm_username(raw):
@@ -259,7 +366,7 @@ def _norm_username(raw):
 
 
 @app.route("/api/users", methods=["GET"])
-@login_required
+@require_perm("sistema")
 def list_users():
     users = load_users()
     data = [_public_user(u, users[u]) for u in sorted(users)]
@@ -267,17 +374,23 @@ def list_users():
 
 
 @app.route("/api/users", methods=["POST"])
-@login_required
+@require_perm("sistema")
 def create_user():
     data = request.get_json(silent=True) or {}
     username = _norm_username(data.get("username"))
     name = (data.get("name") or "").strip() or username
+    email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
+    profile = (data.get("profile") or ADMIN_PROFILE_ID).strip()
 
     if not username or not username.replace("_", "").replace(".", "").isalnum():
         return jsonify({"error": "Usuário inválido (use letras, números, '.' ou '_')"}), 400
+    if not email or not EMAIL_RE.match(email):
+        return jsonify({"error": "Informe um e-mail válido"}), 400
     if len(password) < 6:
         return jsonify({"error": "A senha deve ter ao menos 6 caracteres"}), 400
+    if profile not in load_profiles():
+        return jsonify({"error": "Perfil de acesso inválido"}), 400
 
     users = load_users()
     if username in users:
@@ -286,6 +399,8 @@ def create_user():
     users[username] = {
         "password_hash": generate_password_hash(password),
         "name": name,
+        "email": email,
+        "profile": profile,
         "must_change": False,
     }
     save_users(users)
@@ -293,7 +408,7 @@ def create_user():
 
 
 @app.route("/api/users/<username>", methods=["PUT"])
-@login_required
+@require_perm("sistema")
 def update_user(username):
     username = _norm_username(username)
     data = request.get_json(silent=True) or {}
@@ -304,6 +419,15 @@ def update_user(username):
 
     if "name" in data and data["name"].strip():
         user["name"] = data["name"].strip()
+    if "email" in data:
+        email = (data.get("email") or "").strip().lower()
+        if not email or not EMAIL_RE.match(email):
+            return jsonify({"error": "Informe um e-mail válido"}), 400
+        user["email"] = email
+    if "profile" in data and data["profile"]:
+        if data["profile"] not in load_profiles():
+            return jsonify({"error": "Perfil de acesso inválido"}), 400
+        user["profile"] = data["profile"]
     new_password = data.get("password")
     if new_password:
         if len(new_password) < 6:
@@ -316,7 +440,7 @@ def update_user(username):
 
 
 @app.route("/api/users/<username>", methods=["DELETE"])
-@login_required
+@require_perm("sistema")
 def delete_user(username):
     username = _norm_username(username)
     users = load_users()
@@ -329,6 +453,298 @@ def delete_user(username):
     del users[username]
     save_users(users)
     return jsonify({"status": "removed"})
+
+
+# ── Perfis de acesso (CRUD) ───────────────────────────────────────────────────
+def _profile_id(raw):
+    pid = re.sub(r"[^a-z0-9_]+", "_", (raw or "").strip().lower()).strip("_")
+    return pid
+
+
+@app.route("/api/perm-areas", methods=["GET"])
+@require_perm("sistema")
+def list_perm_areas():
+    return jsonify(PERM_AREAS)
+
+
+@app.route("/api/profiles", methods=["GET"])
+@require_perm("sistema")
+def list_profiles():
+    profiles = load_profiles()
+    users = load_users()
+    out = []
+    for pid in sorted(profiles):
+        p = profiles[pid]
+        in_use = sum(1 for u in users.values() if u.get("profile") == pid)
+        out.append({
+            "id": pid, "name": p.get("name", pid),
+            "perms": [a for a in p.get("perms", []) if a in PERM_AREAS],
+            "in_use": in_use,
+            "locked": pid == ADMIN_PROFILE_ID,
+        })
+    return jsonify(out)
+
+
+@app.route("/api/profiles", methods=["POST"])
+@require_perm("sistema")
+def create_profile():
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    pid = _profile_id(data.get("id") or name)
+    perms = [a for a in (data.get("perms") or []) if a in PERM_AREAS]
+    if not name:
+        return jsonify({"error": "Informe o nome do perfil"}), 400
+    if not pid:
+        return jsonify({"error": "Identificador de perfil inválido"}), 400
+    profiles = load_profiles()
+    if pid in profiles:
+        return jsonify({"error": "Já existe um perfil com esse identificador"}), 409
+    profiles[pid] = {"name": name, "perms": perms}
+    save_profiles(profiles)
+    return jsonify({"id": pid, "name": name, "perms": perms}), 201
+
+
+@app.route("/api/profiles/<pid>", methods=["PUT"])
+@require_perm("sistema")
+def update_profile(pid):
+    data = request.get_json(silent=True) or {}
+    profiles = load_profiles()
+    prof = profiles.get(pid)
+    if not prof:
+        return jsonify({"error": "Perfil não encontrado"}), 404
+    if "name" in data and data["name"].strip():
+        prof["name"] = data["name"].strip()
+    if "perms" in data:
+        perms = [a for a in (data.get("perms") or []) if a in PERM_AREAS]
+        # O perfil administrador sempre mantém todas as permissões
+        if pid == ADMIN_PROFILE_ID:
+            perms = list(ALL_PERMS)
+        prof["perms"] = perms
+    save_profiles(profiles)
+    return jsonify({"id": pid, "name": prof["name"], "perms": prof["perms"]})
+
+
+@app.route("/api/profiles/<pid>", methods=["DELETE"])
+@require_perm("sistema")
+def delete_profile(pid):
+    if pid == ADMIN_PROFILE_ID:
+        return jsonify({"error": "O perfil Administrador não pode ser removido"}), 400
+    profiles = load_profiles()
+    if pid not in profiles:
+        return jsonify({"error": "Perfil não encontrado"}), 404
+    users = load_users()
+    if any(u.get("profile") == pid for u in users.values()):
+        return jsonify({"error": "Há usuários usando este perfil. Reatribua-os antes de remover."}), 400
+    del profiles[pid]
+    save_profiles(profiles)
+    return jsonify({"status": "removed"})
+
+
+# ── Configuração de SMTP (envio de e-mail) ────────────────────────────────────
+SMTP_DEFAULT = {
+    "host": "", "port": 587, "security": "starttls",  # starttls | ssl | none
+    "username": "", "password": "",
+    "from_email": "", "from_name": "TV Corporativa",
+}
+
+
+def load_smtp():
+    cfg = _read_json(SMTP_FILE, None) or {}
+    merged = dict(SMTP_DEFAULT)
+    merged.update({k: v for k, v in cfg.items() if k in SMTP_DEFAULT})
+    return merged
+
+
+def save_smtp(cfg):
+    _write_json(SMTP_FILE, cfg)
+
+
+def _public_smtp(cfg):
+    return {
+        "host": cfg.get("host", ""), "port": cfg.get("port", 587),
+        "security": cfg.get("security", "starttls"),
+        "username": cfg.get("username", ""),
+        "from_email": cfg.get("from_email", ""),
+        "from_name": cfg.get("from_name", "TV Corporativa"),
+        "has_password": bool(cfg.get("password")),
+        "configured": bool(cfg.get("host") and cfg.get("from_email")),
+    }
+
+
+def send_email(to_email, subject, html_body, text_body=None):
+    """Envia um e-mail usando a configuração SMTP salva. Lança exceção em caso de erro."""
+    cfg = load_smtp()
+    host = cfg.get("host")
+    if not host or not cfg.get("from_email"):
+        raise RuntimeError("SMTP não configurado")
+    port = int(cfg.get("port") or 587)
+    security = (cfg.get("security") or "starttls").lower()
+    from_name = cfg.get("from_name") or "TV Corporativa"
+    from_email = cfg.get("from_email")
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = f"{from_name} <{from_email}>"
+    msg["To"] = to_email
+    msg.set_content(text_body or re.sub(r"<[^>]+>", "", html_body))
+    msg.add_alternative(html_body, subtype="html")
+
+    if security == "ssl":
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP_SSL(host, port, timeout=20, context=ctx) as s:
+            if cfg.get("username"):
+                s.login(cfg["username"], cfg.get("password", ""))
+            s.send_message(msg)
+    else:
+        with smtplib.SMTP(host, port, timeout=20) as s:
+            s.ehlo()
+            if security == "starttls":
+                s.starttls(context=ssl.create_default_context())
+                s.ehlo()
+            if cfg.get("username"):
+                s.login(cfg["username"], cfg.get("password", ""))
+            s.send_message(msg)
+
+
+@app.route("/api/smtp", methods=["GET"])
+@require_perm("sistema")
+def get_smtp():
+    return jsonify(_public_smtp(load_smtp()))
+
+
+@app.route("/api/smtp", methods=["PUT"])
+@require_perm("sistema")
+def set_smtp():
+    data = request.get_json(silent=True) or {}
+    cfg = load_smtp()
+    cfg["host"] = (data.get("host") or "").strip()
+    try:
+        cfg["port"] = int(data.get("port") or 587)
+    except (TypeError, ValueError):
+        cfg["port"] = 587
+    sec = (data.get("security") or "starttls").lower()
+    cfg["security"] = sec if sec in ("starttls", "ssl", "none") else "starttls"
+    cfg["username"] = (data.get("username") or "").strip()
+    cfg["from_email"] = (data.get("from_email") or "").strip()
+    cfg["from_name"] = (data.get("from_name") or "TV Corporativa").strip()
+    # Só troca a senha se enviada (campo vazio = manter a atual)
+    if data.get("password"):
+        cfg["password"] = data["password"]
+    if data.get("clear_password"):
+        cfg["password"] = ""
+    save_smtp(cfg)
+    return jsonify(_public_smtp(cfg))
+
+
+@app.route("/api/smtp/test", methods=["POST"])
+@require_perm("sistema")
+def test_smtp():
+    data = request.get_json(silent=True) or {}
+    to = (data.get("to") or "").strip().lower()
+    if not to:
+        # manda para o e-mail do próprio usuário logado
+        user = load_users().get(session.get("user"), {})
+        to = (user.get("email") or "").strip().lower()
+    if not to or not EMAIL_RE.match(to):
+        return jsonify({"error": "Informe um e-mail de destino válido (ou cadastre o seu)"}), 400
+    try:
+        send_email(
+            to, "Teste de SMTP — TV Corporativa",
+            "<p>Este é um e-mail de teste do painel <b>TV Corporativa</b>.</p>"
+            "<p>Se você recebeu esta mensagem, o envio de e-mails está funcionando.</p>",
+        )
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"Falha ao enviar: {e}"}), 502
+    return jsonify({"status": "ok", "sent_to": to})
+
+
+# ── Esqueci a senha (token + e-mail de redefinição) ───────────────────────────
+RESET_TTL_MIN = 60  # validade do link em minutos
+
+
+def _load_resets():
+    return _read_json(RESETS_FILE, None) or {}
+
+
+def _save_resets(d):
+    _write_json(RESETS_FILE, d)
+
+
+def _prune_resets(d):
+    now = datetime.utcnow().timestamp()
+    return {t: v for t, v in d.items() if v.get("exp", 0) > now}
+
+
+@app.route("/api/forgot-password", methods=["POST"])
+def forgot_password():
+    data = request.get_json(silent=True) or {}
+    ident = (data.get("identifier") or "").strip().lower()
+    users = load_users()
+    # localiza por login ou por e-mail
+    target = None
+    if ident in users:
+        target = ident
+    else:
+        for uname, u in users.items():
+            if (u.get("email") or "").strip().lower() == ident and ident:
+                target = uname
+                break
+    # Resposta sempre genérica (não revela se o usuário existe)
+    generic = {"status": "ok",
+               "message": "Se o usuário existir e tiver e-mail cadastrado, enviaremos um link de redefinição."}
+    if not target:
+        return jsonify(generic)
+    user = users[target]
+    email = (user.get("email") or "").strip()
+    if not email:
+        return jsonify(generic)
+    if not _public_smtp(load_smtp())["configured"]:
+        return jsonify({"error": "Envio de e-mail não está configurado. Contate a TI."}), 503
+
+    token = secrets.token_urlsafe(32)
+    resets = _prune_resets(_load_resets())
+    resets[token] = {"user": target,
+                     "exp": (datetime.utcnow() + timedelta(minutes=RESET_TTL_MIN)).timestamp()}
+    _save_resets(resets)
+
+    base = request.host_url.rstrip("/")
+    link = f"{base}/reset?token={token}"
+    html = (
+        f"<p>Olá, {user.get('name', target)}.</p>"
+        f"<p>Recebemos um pedido para redefinir a senha do seu acesso ao painel <b>TV Corporativa</b>.</p>"
+        f"<p><a href=\"{link}\">Clique aqui para criar uma nova senha</a>. "
+        f"O link expira em {RESET_TTL_MIN} minutos.</p>"
+        f"<p>Se você não fez este pedido, ignore este e-mail.</p>"
+    )
+    try:
+        send_email(email, "Redefinição de senha — TV Corporativa", html)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Falha ao enviar e-mail de redefinição: %s", e)
+        return jsonify({"error": "Não foi possível enviar o e-mail. Contate a TI."}), 502
+    return jsonify(generic)
+
+
+@app.route("/api/reset-password", methods=["POST"])
+def reset_password():
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    new = data.get("new_password") or ""
+    if len(new) < 6:
+        return jsonify({"error": "A nova senha deve ter ao menos 6 caracteres"}), 400
+    resets = _prune_resets(_load_resets())
+    entry = resets.get(token)
+    if not entry:
+        return jsonify({"error": "Link inválido ou expirado. Solicite um novo."}), 400
+    users = load_users()
+    user = users.get(entry["user"])
+    if not user:
+        return jsonify({"error": "Usuário não encontrado"}), 404
+    user["password_hash"] = generate_password_hash(new)
+    user["must_change"] = False
+    save_users(users)
+    del resets[token]
+    _save_resets(resets)
+    return jsonify({"status": "ok"})
 
 
 # ── Conteúdo (leitura pública, escrita protegida) ─────────────────────────────
@@ -1116,10 +1532,16 @@ def login_page():
     return send_from_directory(FRONTEND_DIR, "login.html")
 
 
+@app.route("/reset")
+@app.route("/reset.html")
+def reset_page():
+    return send_from_directory(FRONTEND_DIR, "reset.html")
+
+
 # Páginas públicas (display + documentação). admin.html é protegido acima.
 PUBLIC_PAGES = {
     "display.html", "guia_player.html", "manual_usuario.html",
-    "protocolo_testes.html", "relatorio_final.html", "login.html",
+    "protocolo_testes.html", "relatorio_final.html", "login.html", "reset.html",
 }
 
 
