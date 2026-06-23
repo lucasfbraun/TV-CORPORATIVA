@@ -788,6 +788,17 @@ def integration_worker(iid, stop):
                     cur = load_integrations().get(iid)
                     if not cur or not cur.get("active", True):
                         break
+                    # Sessão expirou (token caiu) → o Grafana volta pro /login.
+                    # Refaz o login e reabre a playlist em vez de "fotografar" a tela de login.
+                    if is_grafana and _looks_login(page):
+                        if iid in _intg_threads:
+                            _intg_threads[iid]["status"] = "religando"
+                        _grafana_login(page, base, cur.get("username", ""), cur.get("password", ""))
+                        ctx.storage_state(path=GRAFANA_AUTH_FILE)
+                        _grafana_start_playlist(page, base, cur.get("playlist") or GRAFANA_PLAYLIST)
+                        page.wait_for_timeout(4000)
+                        if iid in _intg_threads:
+                            _intg_threads[iid]["status"] = "ok"
                     tmp = out + ".tmp.png"
                     page.screenshot(path=tmp)
                     os.replace(tmp, out)

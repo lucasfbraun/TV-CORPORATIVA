@@ -791,8 +791,8 @@ function scheduleNext(forceTimer = false) {
   clearInterval(countdownInterval);
   const bar = document.getElementById('progress-bar');
 
-  // Integração que é o único conteúdo da grade: fica fixa (a playlist alterna sozinha)
-  if (slides[current]?.type === 'integration' && slides.length <= 1) {
+  // Integração (Grafana): fica fixa, sem timer — a própria playlist alterna sozinha
+  if (slides[current]?.type === 'integration') {
     setTimeRemaining('');
     return;
   }
