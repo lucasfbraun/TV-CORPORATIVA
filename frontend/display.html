@@ -227,6 +227,8 @@
     position: relative; z-index: 1;
     width: 100%; height: 100%; object-fit: contain;
   }
+  /* Integração (Grafana): preenche a área toda, sem faixas laterais (mantém o rodapé) */
+  .slide-integration .media-fg { object-fit: cover; }
   .slide-media iframe { width: 100%; height: 100%; border: none; }
   .slide-media .yt-wrap { width: 100%; height: 100%; }
   .slide-media .yt-wrap iframe { width: 100%; height: 100%; }
@@ -489,9 +491,8 @@ function buildCalendarSlide(s) {
 function buildIntegrationSlide(s) {
   const img = s.integration_id ? `/uploads/captures/intg-${s.integration_id}.png` : '';
   return `
-    <div class="slide slide-media" id="slide-${s.id}">
-      ${img ? `<div class="media-bg" id="ibg-${s.id}" style="background-image:url('${img}')"></div>
-               <img class="media-fg" id="iimg-${s.id}" src="${img}" alt="" onerror="this.style.display='none'">`
+    <div class="slide slide-media slide-integration" id="slide-${s.id}">
+      ${img ? `<img class="media-fg" id="iimg-${s.id}" src="${img}" alt="" onerror="this.style.display='none'">`
             : `<div class="news-loading">Integração não configurada</div>`}
     </div>`;
 }
