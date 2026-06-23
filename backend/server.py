@@ -1085,7 +1085,7 @@ GRAFANA_URL = ("https://monitoramento.techmaster.inf.br/d/SKHAi2oGz/incidentes"
                "?orgId=4&from=now-6h&to=now&timezone=America%2FSao_Paulo"
                "&var-GRUPO=$__all&var-HOST=$__all&refresh=30s")
 GRAFANA_PLAYLIST = "FLEXIVEL"
-GRAFANA_ZOOM = 0.85  # zoom da página na captura (1.0 = 100%); 0.85 mostra mais conteúdo
+GRAFANA_ZOOM = 1.0  # zoom da página na captura (1.0 = 100%, preenche a tela toda)
 GRAFANA_AUTH_FILE = os.path.join(DATA_DIR, "grafana_auth.json")
 
 
@@ -1216,7 +1216,7 @@ def integration_worker(iid, stop):
                         page.wait_for_timeout(4000)
                         if iid in _intg_threads:
                             _intg_threads[iid]["status"] = "ok"
-                    if is_grafana:
+                    if is_grafana and GRAFANA_ZOOM != 1.0:
                         try:
                             page.evaluate("(z) => document.documentElement.style.zoom = z", str(GRAFANA_ZOOM))
                         except Exception:  # noqa: BLE001
