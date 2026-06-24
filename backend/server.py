@@ -765,11 +765,15 @@ RATES_FILE = os.path.join(DATA_DIR, "rates.json")
 RATES_URL = "https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL"
 
 
+RATES_TTL = 3600  # atualiza as cotações a cada 1 hora
+
+
 def fetch_rates():
-    """Busca USD/BRL e EUR/BRL uma vez por dia, com cache em arquivo."""
+    """Busca USD/BRL e EUR/BRL a cada 1 hora, com cache em arquivo."""
     today = date.today().isoformat()
+    now = time.time()
     cached = _read_json(RATES_FILE, None)
-    if cached and cached.get("date") == today and cached.get("ok"):
+    if cached and cached.get("ok") and (now - cached.get("ts", 0)) < RATES_TTL:
         return cached
 
     try:
@@ -779,6 +783,7 @@ def fetch_rates():
         result = {
             "ok": True,
             "date": today,
+            "ts": now,
             "USD": round(float(raw["USDBRL"]["bid"]), 2),
             "EUR": round(float(raw["EURBRL"]["bid"]), 2),
         }
