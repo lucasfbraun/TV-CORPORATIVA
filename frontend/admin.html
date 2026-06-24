@@ -3384,7 +3384,8 @@ async function saveUser() {
   const profile = document.getElementById('user-profile').value;
   const password = document.getElementById('user-password').value;
   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
-  if (!emailOk) { toast('❌ Informe um e-mail válido.'); return; }
+  if (!isEdit && !emailOk) { toast('❌ Informe um e-mail válido.'); return; }   // e-mail obrigatório só na criação
+  if (isEdit && email && !emailOk) { toast('❌ E-mail inválido.'); return; }     // ao editar, valida só se preenchido
   if (!isEdit && password.length < 6) { toast('❌ A senha deve ter ao menos 6 caracteres.'); return; }
   try {
     let r;

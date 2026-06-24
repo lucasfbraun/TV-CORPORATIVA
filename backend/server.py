@@ -285,10 +285,17 @@ def allowed_file(filename):
 @app.route("/api/login", methods=["POST"])
 def api_login():
     data = request.get_json(silent=True) or {}
-    username = (data.get("username") or "").strip().lower()
+    ident = (data.get("username") or "").strip().lower()
     password = data.get("password") or ""
     users = load_users()
-    user = users.get(username)
+    # Aceita login pelo nome de usuário OU pelo e-mail cadastrado
+    username = ident
+    user = users.get(ident)
+    if not user and ident:
+        for uname, u in users.items():
+            if (u.get("email") or "").strip().lower() == ident:
+                username, user = uname, u
+                break
     if user and check_password_hash(user["password_hash"], password):
         session.permanent = True
         session["user"] = username
@@ -419,9 +426,9 @@ def update_user(username):
 
     if "name" in data and data["name"].strip():
         user["name"] = data["name"].strip()
-    if "email" in data:
-        email = (data.get("email") or "").strip().lower()
-        if not email or not EMAIL_RE.match(email):
+    if data.get("email"):
+        email = data["email"].strip().lower()
+        if not EMAIL_RE.match(email):
             return jsonify({"error": "Informe um e-mail válido"}), 400
         user["email"] = email
     if "profile" in data and data["profile"]:
@@ -744,6 +751,7 @@ def reset_password():
     save_users(users)
     del resets[token]
     _save_resets(resets)
+    log.info("Senha redefinida via link para o usuário '%s'. Login pode ser feito com o usuário ou o e-mail.", entry["user"])
     return jsonify({"status": "ok"})
 
 
