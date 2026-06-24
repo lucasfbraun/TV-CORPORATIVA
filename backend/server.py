@@ -1094,6 +1094,7 @@ GRAFANA_URL = ("https://monitoramento.techmaster.inf.br/d/SKHAi2oGz/incidentes"
                "&var-GRUPO=$__all&var-HOST=$__all&refresh=30s")
 GRAFANA_PLAYLIST = "FLEXIVEL"
 GRAFANA_ZOOM = 1.0  # zoom da página na captura (1.0 = 100%, preenche a tela toda)
+GRAFANA_REFRESH = "30s"  # auto-refresh dos painéis no navegador (mantém os dados atuais)
 GRAFANA_AUTH_FILE = os.path.join(DATA_DIR, "grafana_auth.json")
 
 
@@ -1105,7 +1106,7 @@ def ensure_grafana_integration():
     g.setdefault("name", "Grafana")
     g["url"] = GRAFANA_URL
     g["playlist"] = GRAFANA_PLAYLIST
-    g.setdefault("interval", 20)
+    g.setdefault("interval", 10)
     g.setdefault("username", "")
     g.setdefault("password", "")
     g.setdefault("active", True)
@@ -1150,7 +1151,8 @@ def _grafana_start_playlist(page, base, name):
             for pl in resp.json():
                 if (pl.get("name") or "").strip().lower() == (name or "").strip().lower():
                     key = pl.get("uid") or pl.get("id")
-                    page.goto(f"{base}/playlists/play/{key}?kiosk", wait_until="domcontentloaded", timeout=60000)
+                    page.goto(f"{base}/playlists/play/{key}?kiosk&refresh={GRAFANA_REFRESH}",
+                              wait_until="domcontentloaded", timeout=60000)
                     page.wait_for_timeout(4000)
                     return True
     except Exception as e:  # noqa: BLE001
@@ -1184,7 +1186,7 @@ def integration_worker(iid, stop):
             continue
         is_grafana = cfg.get("type", "grafana") == "grafana"
         url = GRAFANA_URL if is_grafana else cfg.get("url", "")
-        interval = max(5, int(cfg.get("interval") or 20))
+        interval = max(5, int(cfg.get("interval") or 10))
         try:
             with sync_playwright() as p:
                 browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
