@@ -864,9 +864,34 @@ function startCountdown(seconds) {
   }, 1000);
 }
 
+// ── Vigia de vídeo: detecta vídeo travado/preto (não progride) e avança rápido ──
+let _vwdTimer = null, _vwdLast = -1, _vwdStuck = 0;
+function clearVideoWatchdog() { if (_vwdTimer) { clearInterval(_vwdTimer); _vwdTimer = null; } }
+function startVideoWatchdog() {
+  clearVideoWatchdog();
+  _vwdLast = -1; _vwdStuck = 0;
+  _vwdTimer = setInterval(() => {
+    const slide = slides[current];
+    if (!slide || !currentIsVideo()) { clearVideoWatchdog(); return; }
+    let t = null;
+    const vid = document.querySelector(`#slide-${slide.id} video`);
+    if (vid) t = vid.currentTime;
+    else if (_ytPlayer && _ytPlayer.getCurrentTime) { try { t = _ytPlayer.getCurrentTime(); } catch (e) {} }
+    if (t === null || t === undefined) return;   // player ainda não pronto
+    if (Math.abs(t - _vwdLast) < 0.15) _vwdStuck++; else _vwdStuck = 0;
+    _vwdLast = t;
+    if (_vwdStuck >= 6) {                          // ~12s sem progredir → travado/preto
+      clearVideoWatchdog();
+      console.warn('Vídeo travado/preto — avançando para o próximo slide.');
+      goTo(current + 1);
+    }
+  }, 2000);
+}
+
 function scheduleNext(forceTimer = false) {
   clearTimeout(timer);
   clearInterval(countdownInterval);
+  clearVideoWatchdog();
   const bar = document.getElementById('progress-bar');
 
   // Integração (Grafana): fica fixa, sem timer — a própria playlist alterna sozinha
@@ -884,7 +909,8 @@ function scheduleNext(forceTimer = false) {
       bar.style.width = '99%'; // nunca chega a 100% – vídeo decide
     }, 60);
     setTimeRemaining('▶ vídeo');
-    // Fallback: se após 10 min o vídeo não terminar, avança
+    startVideoWatchdog();   // se o vídeo travar/ficar preto, avança em ~12s
+    // Fallback final: se após 10 min o vídeo não terminar, avança
     timer = setTimeout(() => goTo(current + 1), 10 * 60 * 1000);
     return;
   }
