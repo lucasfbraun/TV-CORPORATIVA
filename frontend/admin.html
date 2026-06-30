@@ -1044,6 +1044,65 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
   </div>
 </div>
 
+<!-- Modal: Agendamento de exibição -->
+<div class="modal-overlay" id="modal-schedule">
+  <div class="modal">
+    <div class="modal-title">
+      <span>⏰</span> <span>Agendar exibição</span>
+      <button class="modal-close" onclick="closeModal('modal-schedule')">×</button>
+    </div>
+    <input type="hidden" id="sched-slide-id">
+    <p style="font-size:13px;color:var(--dim);margin-bottom:12px;">Defina quando este conteúdo aparece na TV. Fora do período, ele sai da rotação sozinho.</p>
+    <div class="form-group">
+      <label class="form-label">Quando exibir</label>
+      <select class="form-input" id="sched-mode" onchange="schedModeChanged()">
+        <option value="always">Sempre</option>
+        <option value="range">Período — entre duas datas</option>
+        <option value="recurring">Recorrente — repete todo ano/mês</option>
+      </select>
+    </div>
+
+    <div id="sched-range" style="display:none;">
+      <div class="form-row">
+        <div class="form-group" style="flex:1;"><label class="form-label">De</label>
+          <input class="form-input" id="sched-start" type="date"></div>
+        <div class="form-group" style="flex:1;"><label class="form-label">Até</label>
+          <input class="form-input" id="sched-end" type="date"></div>
+      </div>
+      <small style="color:var(--dim);font-size:11px;">Ex.: campanha do dia 01/06 ao 15/06. Deixe um campo vazio para “sem limite”.</small>
+    </div>
+
+    <div id="sched-recurring" style="display:none;">
+      <div class="form-group">
+        <label class="form-label">Meses do ano <small style="color:var(--dim);">(nenhum marcado = todos)</small></label>
+        <div id="sched-months" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex:1;"><label class="form-label">Dia do mês — de</label>
+          <input class="form-input" id="sched-domfrom" type="number" min="1" max="31" placeholder="1"></div>
+        <div class="form-group" style="flex:1;"><label class="form-label">até</label>
+          <input class="form-input" id="sched-domto" type="number" min="1" max="31" placeholder="31"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Dias da semana <small style="color:var(--dim);">(nenhum marcado = todos)</small></label>
+        <div id="sched-weekdays" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex:1;"><label class="form-label">Horário — de</label>
+          <input class="form-input" id="sched-timefrom" type="time"></div>
+        <div class="form-group" style="flex:1;"><label class="form-label">até</label>
+          <input class="form-input" id="sched-timeto" type="time"></div>
+      </div>
+      <small style="color:var(--dim);font-size:11px;">Ex.: aniversariantes de junho = só o mês “Jun”. Comercial = Seg–Sex, 08:00–18:00.</small>
+    </div>
+
+    <div class="action-row-end">
+      <button class="btn btn-outline" onclick="closeModal('modal-schedule')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSchedule()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: TV -->
 <div class="modal-overlay" id="modal-tv">
   <div class="modal">
@@ -2864,7 +2923,10 @@ function renderTimeline() {
     card.innerHTML = `
       <div class="gp-preview"><span class="gp-num">${i+1}</span>${slidePreview(s)}</div>
       <div class="gp-body">
-        <span class="type-badge ${s.type}" style="align-self:flex-start;">${labels[s.type]||s.type}</span>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <span class="type-badge ${s.type}">${labels[s.type]||s.type}</span>
+          ${scheduleBadge(s)}
+        </div>
         <div class="gp-title" title="${title.replace(/"/g,'&quot;')}">${title}</div>
         <div class="gp-dur">⏱
           <input type="number" min="1" max="3600" value="${s.duration||''}" placeholder="${defDur}"
@@ -2872,6 +2934,7 @@ function renderTimeline() {
         </div>
         <div class="gp-acts">
           <button class="btn btn-outline btn-sm" onclick="editSlide(${s.id})" title="Editar conteúdo">✏️</button>
+          <button class="btn btn-outline btn-sm" onclick="openScheduleModal(${s.id})" title="Agendar exibição (período)">⏰</button>
           <button class="btn btn-outline btn-sm" onclick="tlToggle(${s.id})" title="${s.active?'Desativar':'Ativar'}">${s.active?'👁':'🚫'}</button>
           <button class="btn btn-danger btn-sm" onclick="deleteSlide(${s.id})" title="Remover">🗑️</button>
           <span class="gp-drag" title="Arraste para reordenar">⠿</span>
@@ -2932,6 +2995,92 @@ function slidePreview(s) {
       <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;">${s.name || 'Integração'}</span></div>`;
   }
   return `<span class="gp-ico">🎬</span>`;
+}
+
+// ── Agendamento de exibição (período / recorrente) ──────────────────────────
+const SCHED_MONTHS = [['Jan',1],['Fev',2],['Mar',3],['Abr',4],['Mai',5],['Jun',6],
+                      ['Jul',7],['Ago',8],['Set',9],['Out',10],['Nov',11],['Dez',12]];
+const SCHED_WD = [['Dom',0],['Seg',1],['Ter',2],['Qua',3],['Qui',4],['Sex',5],['Sáb',6]];
+const _MN_ABBR = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const _WD_ABBR = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+function _brDate(ymd){ const p=(ymd||'').split('-'); return p.length===3?`${p[2]}/${p[1]}`:ymd; }
+
+function scheduleBadge(s) {
+  const sc = s.schedule;
+  if (!sc || !sc.mode || sc.mode === 'always') return '';
+  let txt = '';
+  if (sc.mode === 'range') {
+    txt = `${sc.start?_brDate(sc.start):'…'} – ${sc.end?_brDate(sc.end):'…'}`;
+  } else {
+    const parts = [];
+    if (sc.months && sc.months.length) parts.push(sc.months.slice().sort((a,b)=>a-b).map(m=>_MN_ABBR[m]).join('/'));
+    if (sc.dom_from || sc.dom_to) parts.push('dia ' + (sc.dom_from||1) + '–' + (sc.dom_to||31));
+    if (sc.weekdays && sc.weekdays.length) parts.push(sc.weekdays.slice().sort((a,b)=>a-b).map(d=>_WD_ABBR[d]).join('/'));
+    if (sc.time_from || sc.time_to) parts.push((sc.time_from||'00:00') + '–' + (sc.time_to||'23:59'));
+    txt = parts.join(' · ') || 'recorrente';
+  }
+  return `<span class="type-badge" style="background:#fff3e0;color:#b9842b;" title="Exibição agendada">⏰ ${txt}</span>`;
+}
+
+function schedModeChanged() {
+  const m = document.getElementById('sched-mode').value;
+  document.getElementById('sched-range').style.display = m === 'range' ? '' : 'none';
+  document.getElementById('sched-recurring').style.display = m === 'recurring' ? '' : 'none';
+}
+
+function _chip(cls, val, label, checked) {
+  return `<label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:400;background:var(--gray-light,#e8eef5);padding:5px 9px;border-radius:7px;cursor:pointer;">
+    <input type="checkbox" class="${cls}" value="${val}" ${checked?'checked':''}> ${label}</label>`;
+}
+
+function openScheduleModal(id) {
+  const s = activeSlides().find(x => x.id === id);
+  if (!s) return;
+  const sc = s.schedule || {};
+  document.getElementById('sched-slide-id').value = id;
+  document.getElementById('sched-mode').value = sc.mode || 'always';
+  document.getElementById('sched-start').value = sc.start || '';
+  document.getElementById('sched-end').value = sc.end || '';
+  document.getElementById('sched-domfrom').value = sc.dom_from || '';
+  document.getElementById('sched-domto').value = sc.dom_to || '';
+  document.getElementById('sched-timefrom').value = sc.time_from || '';
+  document.getElementById('sched-timeto').value = sc.time_to || '';
+  document.getElementById('sched-months').innerHTML =
+    SCHED_MONTHS.map(([lb,v]) => _chip('sched-month', v, lb, (sc.months||[]).includes(v))).join('');
+  document.getElementById('sched-weekdays').innerHTML =
+    SCHED_WD.map(([lb,v]) => _chip('sched-wd', v, lb, (sc.weekdays||[]).includes(v))).join('');
+  schedModeChanged();
+  openModal('modal-schedule');
+}
+
+function saveSchedule() {
+  const id = parseInt(document.getElementById('sched-slide-id').value);
+  const s = activeSlides().find(x => x.id === id);
+  if (!s) return;
+  const mode = document.getElementById('sched-mode').value;
+  if (mode === 'always') {
+    delete s.schedule;
+  } else if (mode === 'range') {
+    const start = document.getElementById('sched-start').value || null;
+    const end = document.getElementById('sched-end').value || null;
+    if (start && end && end < start) { toast('❌ A data final é antes da inicial.'); return; }
+    s.schedule = { mode:'range', start, end };
+  } else {
+    s.schedule = {
+      mode: 'recurring',
+      months: [...document.querySelectorAll('.sched-month:checked')].map(c => parseInt(c.value)),
+      weekdays: [...document.querySelectorAll('.sched-wd:checked')].map(c => parseInt(c.value)),
+      dom_from: parseInt(document.getElementById('sched-domfrom').value) || null,
+      dom_to: parseInt(document.getElementById('sched-domto').value) || null,
+      time_from: document.getElementById('sched-timefrom').value || null,
+      time_to: document.getElementById('sched-timeto').value || null,
+    };
+  }
+  save(DATA);
+  renderTimeline();
+  closeModal('modal-schedule');
+  toast('✅ Agendamento salvo!');
 }
 
 function setSlideDuration(id, val) {
