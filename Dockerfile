@@ -10,8 +10,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Cliente PostgreSQL (pg_dump/pg_restore para o backup) — v15 casa com o postgres:15 do compose
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
 # Dependências do servidor
-RUN pip install --no-cache-dir Flask==3.0.3 Werkzeug==3.0.3 waitress==3.0.0 playwright==1.47.0
+RUN pip install --no-cache-dir Flask==3.0.3 Werkzeug==3.0.3 waitress==3.0.0 playwright==1.47.0 psycopg2-binary==2.9.9
 
 # Navegador headless (Chromium) para as Integrações com login (ex.: Grafana)
 RUN playwright install --with-deps chromium

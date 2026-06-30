@@ -356,6 +356,7 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
       <button class="nav-btn" data-area="sistema" onclick="showPanel('profiles',event)">🛡️ Perfis de Acesso</button>
       <button class="nav-btn" data-area="sistema" onclick="showPanel('integrations',event)">🔌 Integrações</button>
       <button class="nav-btn" data-area="sistema" onclick="showPanel('smtp',event)">✉️ E-mail (SMTP)</button>
+      <button class="nav-btn" data-area="sistema" onclick="showPanel('backup',event)">💾 Backup</button>
       <button class="nav-btn" data-area="sistema" onclick="showPanel('config',event)">⚙️ Configurações</button>
     </div>
   </nav>
@@ -699,6 +700,29 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
         <div class="action-row-end" style="gap:8px;">
           <button class="btn btn-outline" onclick="testSmtp()">📨 Enviar teste</button>
           <button class="btn btn-primary" onclick="saveSmtp()">💾 Salvar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-backup">
+      <div class="card">
+        <div class="card-title"><span>💾</span> Backup do Banco de Dados</div>
+        <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+          O backup contém <b>tudo</b>: configurações, TVs, grades, rodapés, usuários e as mídias (imagens/vídeos).
+          Guarde o arquivo em local seguro — com ele você restaura o sistema em qualquer máquina.
+        </p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;">
+          <button class="btn btn-primary" onclick="downloadBackup()">⬇️ Baixar backup agora</button>
+          <span id="backup-status" style="align-self:center;font-size:13px;color:var(--dim);"></span>
+        </div>
+        <div class="card-title" style="font-size:15px;"><span>⚠️</span> Restaurar backup</div>
+        <p style="font-size:13px;color:var(--red);margin:8px 0 12px;">
+          Atenção: restaurar <b>substitui todos os dados atuais</b> pelo conteúdo do arquivo. Esta ação não pode ser desfeita.
+        </p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+          <input type="file" id="restore-file" accept=".dump,.sql,.backup" class="form-input" style="max-width:360px;">
+          <button class="btn btn-danger" onclick="restoreBackup()">⬆️ Restaurar</button>
+          <span id="restore-status" style="font-size:13px;color:var(--dim);"></span>
         </div>
       </div>
     </div>
@@ -1483,7 +1507,8 @@ const PANEL_TITLES = {
   media:'Mídia', gallery:'Galeria', timeline:'Grade de Programação',
   biblioteca:'Biblioteca de Arquivos', rodapes:'Barra inferior',
   users:'Usuários', profiles:'Perfis de Acesso',
-  integrations:'Integrações', smtp:'Servidor de E-mail (SMTP)', config:'Configurações'
+  integrations:'Integrações', smtp:'Servidor de E-mail (SMTP)',
+  backup:'Backup do Banco', config:'Configurações'
 };
 
 // Permissões do usuário logado (preenchido em loadCurrentUser)
@@ -1491,7 +1516,8 @@ let MY_PERMS = null;          // null = ainda não carregado (não restringe)
 const PANEL_AREA = {
   tvs:'grade', grades:'grade', timeline:'grade',
   biblioteca:'biblioteca', rodapes:'rodape',
-  users:'sistema', profiles:'sistema', integrations:'sistema', smtp:'sistema', config:'sistema',
+  users:'sistema', profiles:'sistema', integrations:'sistema', smtp:'sistema',
+  backup:'sistema', config:'sistema',
 };
 
 function hasPerm(area) { return !MY_PERMS || MY_PERMS.includes(area); }
@@ -3567,6 +3593,43 @@ async function testSmtp() {
     if (!r.ok) { toast('❌ ' + (data.error || 'Falha no teste')); return; }
     toast('✅ E-mail de teste enviado para ' + (data.sent_to || ''));
   } catch (e) { toast('❌ Sem conexão com o servidor.'); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BACKUP / RESTAURAÇÃO DO BANCO
+// ═══════════════════════════════════════════════════════════
+async function downloadBackup() {
+  const st = document.getElementById('backup-status');
+  st.textContent = 'Gerando backup...'; st.style.color = 'var(--dim)';
+  try {
+    const r = await fetch('/api/backup');
+    if (r.status === 403) { st.textContent = 'Sem permissão.'; st.style.color = 'var(--red)'; return; }
+    if (!r.ok) { const d = await r.json().catch(()=>({})); throw new Error(d.error || ('HTTP ' + r.status)); }
+    const blob = await r.blob();
+    const cd = r.headers.get('Content-Disposition') || '';
+    const m = cd.match(/filename="([^"]+)"/);
+    const name = m ? m[1] : 'tvcorporativa-backup.dump';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    URL.revokeObjectURL(a.href);
+    st.textContent = '✅ Backup baixado.'; st.style.color = 'var(--green)';
+  } catch (e) { st.textContent = '❌ ' + e.message; st.style.color = 'var(--red)'; }
+}
+
+async function restoreBackup() {
+  const inp = document.getElementById('restore-file');
+  const st = document.getElementById('restore-status');
+  if (!inp.files || !inp.files[0]) { st.textContent = 'Selecione um arquivo.'; st.style.color = 'var(--red)'; return; }
+  if (!confirm('Tem certeza? Restaurar vai SUBSTITUIR todos os dados atuais pelo conteúdo do arquivo. Esta ação não pode ser desfeita.')) return;
+  st.textContent = 'Restaurando... (pode demorar)'; st.style.color = 'var(--dim)';
+  const fd = new FormData(); fd.append('file', inp.files[0]);
+  try {
+    const r = await fetch('/api/restore', { method: 'POST', body: fd });
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok) { st.textContent = '❌ ' + (d.error || ('HTTP ' + r.status)); st.style.color = 'var(--red)'; return; }
+    st.textContent = '✅ Banco restaurado! Recarregando...'; st.style.color = 'var(--green)';
+    setTimeout(() => location.reload(), 1500);
+  } catch (e) { st.textContent = '❌ Sem conexão com o servidor.'; st.style.color = 'var(--red)'; }
 }
 
 // ═══════════════════════════════════════════════════════════
