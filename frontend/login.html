@@ -100,10 +100,6 @@ label { display:block;font-size:12px;font-weight:600;color:var(--text);margin-bo
       <label for="restore-file">Arquivo de backup (.dump)</label>
       <input class="form-input" id="restore-file" type="file" accept=".dump,.sql,.backup" required>
     </div>
-    <div class="form-group">
-      <label for="restore-key">Chave de restauração</label>
-      <input class="form-input" id="restore-key" type="password" autocomplete="off" required>
-    </div>
     <button class="btn-login" id="restore-btn" type="submit" style="background:#b5302a;">Restaurar agora</button>
 
     <div class="hint">
@@ -165,7 +161,6 @@ async function doRestore(e){
   btn.disabled = true; btn.textContent = 'Restaurando...';
   const fd = new FormData();
   fd.append('file', file);
-  fd.append('key', document.getElementById('restore-key').value);
   try {
     const r = await fetch('/api/restore-login', { method:'POST', body: fd });
     const data = await r.json().catch(()=>({}));

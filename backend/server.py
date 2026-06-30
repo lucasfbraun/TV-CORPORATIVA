@@ -842,12 +842,7 @@ def restore_authenticated():
 
 @app.route("/api/restore-login", methods=["POST"])
 def restore_from_login():
-    """Restauração pela tela de login — protegida pela chave TV_RESTORE_KEY."""
-    expected = os.environ.get("TV_RESTORE_KEY", "")
-    if not expected:
-        return jsonify({"error": "Restauração pela tela de login está desativada."}), 403
-    if (request.form.get("key") or "") != expected:
-        return jsonify({"error": "Chave de restauração inválida."}), 403
+    """Restauração pela tela de login (sem chave, a pedido do operador)."""
     return _do_restore(request)
 
 
