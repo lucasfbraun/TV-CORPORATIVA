@@ -563,7 +563,7 @@ function buildMediaSlide(s) {
     media = `<div style="font-size:80px;opacity:.3">🖼️</div>`;
   } else if (isVideo) {
     // Vídeo: sem loop, avança automaticamente ao terminar
-    media = `<video id="vid-${s.id}" src="${s.url}" autoplay muted playsinline
+    media = `<video id="vid-${s.id}" src="${s.url}" autoplay muted playsinline preload="auto"
                onended="onVideoEnded(${s.id})"
                onerror="onVideoError(${s.id})"></video>`;
   } else if (ytId) {
@@ -865,24 +865,31 @@ function startCountdown(seconds) {
 }
 
 // ── Vigia de vídeo: detecta vídeo travado/preto (não progride) e avança rápido ──
-let _vwdTimer = null, _vwdLast = -1, _vwdStuck = 0;
+let _vwdTimer = null, _vwdLast = -1, _vwdStuck = 0, _vwdStarted = false;
 function clearVideoWatchdog() { if (_vwdTimer) { clearInterval(_vwdTimer); _vwdTimer = null; } }
 function startVideoWatchdog() {
   clearVideoWatchdog();
-  _vwdLast = -1; _vwdStuck = 0;
+  _vwdLast = -1; _vwdStuck = 0; _vwdStarted = false;
   _vwdTimer = setInterval(() => {
     const slide = slides[current];
     if (!slide || !currentIsVideo()) { clearVideoWatchdog(); return; }
-    let t = null;
     const vid = document.querySelector(`#slide-${slide.id} video`);
+    if (vid && vid.error) {                        // falha real de carregamento → avança já
+      clearVideoWatchdog();
+      console.warn('Vídeo com erro — avançando.');
+      goTo(current + 1); return;
+    }
+    let t = null;
     if (vid) t = vid.currentTime;
     else if (_ytPlayer && _ytPlayer.getCurrentTime) { try { t = _ytPlayer.getCurrentTime(); } catch (e) {} }
-    if (t === null || t === undefined) return;   // player ainda não pronto
-    if (Math.abs(t - _vwdLast) < 0.15) _vwdStuck++; else _vwdStuck = 0;
+    if (t === null || t === undefined) return;     // player ainda não pronto
+    if (Math.abs(t - _vwdLast) >= 0.15) { _vwdStarted = true; _vwdStuck = 0; } else { _vwdStuck++; }
     _vwdLast = t;
-    if (_vwdStuck >= 6) {                          // ~12s sem progredir → travado/preto
+    // Já começou e travou no meio → pula em ~12s. Ainda carregando (vídeo grande) → espera ~46s.
+    const limite = _vwdStarted ? 6 : 23;
+    if (_vwdStuck >= limite) {
       clearVideoWatchdog();
-      console.warn('Vídeo travado/preto — avançando para o próximo slide.');
+      console.warn('Vídeo não carregou/travou — avançando para o próximo slide.');
       goTo(current + 1);
     }
   }, 2000);
