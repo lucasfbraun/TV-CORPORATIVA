@@ -33,13 +33,18 @@ import urllib.parse
 import re
 import smtplib
 import ssl
+import subprocess
+import tempfile
 from email.message import EmailMessage
 from datetime import date, datetime, timedelta
 from functools import wraps
 
+import db  # camada de dados PostgreSQL (mesmo diretório)
+
 from flask import (
     Flask, send_from_directory, request, jsonify,
-    session, redirect, url_for, abort,
+    session, redirect, url_for, abort, Response,
+    send_file, after_this_request,
 )
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -137,11 +142,12 @@ def _write_json(path, data):
 
 
 def load_content():
-    return _read_json(CONTENT_FILE, DEFAULT_CONTENT)
+    data = db.doc_get("content")
+    return data if data is not None else DEFAULT_CONTENT
 
 
 def save_content(data):
-    _write_json(CONTENT_FILE, data)
+    db.doc_set("content", data)
 
 
 def get_secret_key():
@@ -167,26 +173,26 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def load_profiles():
-    profiles = _read_json(PROFILES_FILE, None)
+    profiles = db.doc_get("profiles")
     if not profiles:
         profiles = {
             ADMIN_PROFILE_ID: {"name": "Administrador", "perms": list(ALL_PERMS)},
             "operador":       {"name": "Operador", "perms": ["grade", "biblioteca", "rodape"]},
         }
-        _write_json(PROFILES_FILE, profiles)
+        db.doc_set("profiles", profiles)
     # Garante que o perfil administrador exista e tenha todas as permissões
     adm = profiles.get(ADMIN_PROFILE_ID)
     if not adm:
         profiles[ADMIN_PROFILE_ID] = {"name": "Administrador", "perms": list(ALL_PERMS)}
-        _write_json(PROFILES_FILE, profiles)
+        db.doc_set("profiles", profiles)
     elif set(adm.get("perms", [])) != set(ALL_PERMS):
         adm["perms"] = list(ALL_PERMS)
-        _write_json(PROFILES_FILE, profiles)
+        db.doc_set("profiles", profiles)
     return profiles
 
 
 def save_profiles(profiles):
-    _write_json(PROFILES_FILE, profiles)
+    db.doc_set("profiles", profiles)
 
 
 def _profile_perms(profile_id):
@@ -197,7 +203,7 @@ def _profile_perms(profile_id):
 
 
 def load_users():
-    users = _read_json(USERS_FILE, None)
+    users = db.doc_get("users")
     migrated = False
     if not users:
         # Cria usuário admin padrão no primeiro arranque
@@ -210,7 +216,7 @@ def load_users():
                 "must_change": True,
             }
         }
-        _write_json(USERS_FILE, users)
+        db.doc_set("users", users)
         log.warning("Usuário 'admin' criado com senha padrão 'flexivel'. TROQUE no primeiro login.")
         return users
     # Migração: usuários antigos sem perfil viram administrador; garante campo email
@@ -222,12 +228,12 @@ def load_users():
             u["email"] = ""
             migrated = True
     if migrated:
-        _write_json(USERS_FILE, users)
+        db.doc_set("users", users)
     return users
 
 
 def save_users(users):
-    _write_json(USERS_FILE, users)
+    db.doc_set("users", users)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -556,14 +562,14 @@ SMTP_DEFAULT = {
 
 
 def load_smtp():
-    cfg = _read_json(SMTP_FILE, None) or {}
+    cfg = db.doc_get("smtp") or {}
     merged = dict(SMTP_DEFAULT)
     merged.update({k: v for k, v in cfg.items() if k in SMTP_DEFAULT})
     return merged
 
 
 def save_smtp(cfg):
-    _write_json(SMTP_FILE, cfg)
+    db.doc_set("smtp", cfg)
 
 
 def _public_smtp(cfg):
@@ -670,11 +676,11 @@ RESET_TTL_MIN = 60  # validade do link em minutos
 
 
 def _load_resets():
-    return _read_json(RESETS_FILE, None) or {}
+    return db.doc_get("password_resets") or {}
 
 
 def _save_resets(d):
-    _write_json(RESETS_FILE, d)
+    db.doc_set("password_resets", d)
 
 
 def _prune_resets(d):
@@ -753,6 +759,91 @@ def reset_password():
     _save_resets(resets)
     log.info("Senha redefinida via link para o usuário '%s'. Login pode ser feito com o usuário ou o e-mail.", entry["user"])
     return jsonify({"status": "ok"})
+
+
+# ── Backup e restauração do banco (pg_dump / pg_restore) ──────────────────────
+def _pg_env():
+    """Monta as variáveis PG* a partir da DATABASE_URL para o pg_dump/pg_restore."""
+    u = urllib.parse.urlparse(os.environ.get("DATABASE_URL", ""))
+    env = dict(os.environ)
+    env["PGHOST"] = u.hostname or "db"
+    env["PGPORT"] = str(u.port or 5432)
+    env["PGUSER"] = u.username or "tvcorp"
+    env["PGPASSWORD"] = u.password or ""
+    dbname = (u.path or "/tvcorporativa").lstrip("/")
+    return env, dbname
+
+
+@app.route("/api/backup", methods=["GET"])
+@require_perm("sistema")
+def backup_download():
+    env, dbname = _pg_env()
+    fd, path = tempfile.mkstemp(suffix=".dump")
+    os.close(fd)
+
+    @after_this_request
+    def _cleanup(resp):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        return resp
+
+    try:
+        proc = subprocess.run(
+            ["pg_dump", "-Fc", "--no-owner", "--no-privileges", "-f", path, dbname],
+            env=env, capture_output=True, timeout=1800,
+        )
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"Falha ao gerar backup: {e}"}), 500
+    if proc.returncode != 0:
+        return jsonify({"error": proc.stderr.decode("utf-8", "ignore")[:400] or "pg_dump falhou"}), 500
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return send_file(path, as_attachment=True,
+                     download_name=f"tvcorporativa-backup-{ts}.dump",
+                     mimetype="application/octet-stream")
+
+
+def _do_restore(req):
+    if "file" not in req.files:
+        return jsonify({"error": "Envie o arquivo de backup"}), 400
+    f = req.files["file"]
+    if not f or f.filename == "":
+        return jsonify({"error": "Arquivo de backup vazio"}), 400
+    env, dbname = _pg_env()
+    fd, path = tempfile.mkstemp(suffix=".dump")
+    os.close(fd)
+    f.save(path)
+    try:
+        proc = subprocess.run(
+            ["pg_restore", "--clean", "--if-exists", "--no-owner", "--no-privileges",
+             "-d", dbname, path],
+            env=env, capture_output=True, timeout=1800,
+        )
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"Falha ao restaurar: {e}"}), 500
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    db.reset_pool()  # reconecta após a troca dos dados
+    if proc.returncode != 0:
+        return jsonify({"error": proc.stderr.decode("utf-8", "ignore")[:400] or "pg_restore falhou"}), 500
+    log.warning("Banco de dados RESTAURADO a partir de um backup enviado.")
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/restore", methods=["POST"])
+@require_perm("sistema")
+def restore_authenticated():
+    return _do_restore(request)
+
+
+@app.route("/api/restore-login", methods=["POST"])
+def restore_from_login():
+    """Restauração pela tela de login (sem chave, a pedido do operador)."""
+    return _do_restore(request)
 
 
 # ── Conteúdo (leitura pública, escrita protegida) ─────────────────────────────
@@ -1075,12 +1166,12 @@ _intg_threads = {}  # id -> {"stop": Event, "thread": Thread, "status": str}
 
 
 def load_integrations():
-    d = _read_json(INTEGRATIONS_FILE, {})
+    d = db.doc_get("integrations", {})
     return d if isinstance(d, dict) else {}
 
 
 def save_integrations(d):
-    _write_json(INTEGRATIONS_FILE, d)
+    db.doc_set("integrations", d)
 
 
 def _public_integration(iid, c):
@@ -1362,14 +1453,8 @@ def safe_rel_path(rel):
     return "/".join(parts)
 
 
-def uploads_abs(rel):
-    """Retorna (caminho_relativo_seguro, caminho_absoluto) garantindo que fica dentro de uploads/."""
-    safe = safe_rel_path(rel)
-    full = os.path.abspath(os.path.join(UPLOADS_DIR, safe))
-    root = os.path.abspath(UPLOADS_DIR)
-    if full != root and not full.startswith(root + os.sep):
-        return None, None
-    return safe, full
+def _media_count_under(all_media, prefix):
+    return sum(1 for m in all_media if m["path"].startswith(prefix))
 
 
 def _file_kind(name):
@@ -1392,15 +1477,11 @@ def upload_file():
     if not allowed_file(file.filename):
         return jsonify({"error": "Tipo de arquivo não permitido"}), 400
 
-    safe_dir, dest_dir = uploads_abs(request.form.get("path", ""))
-    if dest_dir is None:
-        safe_dir, dest_dir = "", UPLOADS_DIR
-    os.makedirs(dest_dir, exist_ok=True)
-
+    safe_dir = safe_rel_path(request.form.get("path", ""))
     safe_name = secure_filename(file.filename)
     unique = f"{uuid.uuid4().hex[:8]}_{safe_name}"
-    file.save(os.path.join(dest_dir, unique))
     rel_url = (safe_dir + "/" + unique).strip("/")
+    db.media_put(rel_url, file.read(), _guess_mime(unique))
     return jsonify({"status": "ok", "url": f"/uploads/{rel_url}", "filename": unique, "path": safe_dir}), 201
 
 
@@ -1408,29 +1489,43 @@ def upload_file():
 @app.route("/api/library", methods=["GET"])
 @login_required
 def list_library():
-    safe, base = uploads_abs(request.args.get("path", ""))
-    if base is None or not os.path.isdir(base):
-        safe, base = "", UPLOADS_DIR
-    folders, files = [], []
-    for name in sorted(os.listdir(base), key=str.lower):
-        full = os.path.join(base, name)
-        relpath = (safe + "/" + name).strip("/")
-        if os.path.isdir(full):
-            try:
-                count = len(os.listdir(full))
-            except OSError:
-                count = 0
-            folders.append({"name": name, "path": relpath, "count": count})
-        elif os.path.isfile(full):
-            size_bytes = os.path.getsize(full)
+    safe = safe_rel_path(request.args.get("path", ""))
+    prefix = (safe + "/") if safe else ""
+    all_media = db.media_list()
+    all_folders = db.folders_all()
+
+    folder_names = set()
+    files = []
+    for m in all_media:
+        p = m["path"]
+        if not p.startswith(prefix):
+            continue
+        rest = p[len(prefix):]
+        if "/" in rest:
+            folder_names.add(rest.split("/", 1)[0])  # subpasta implícita
+        else:
+            size_bytes = m.get("size") or 0
             files.append({
-                "filename": name,
-                "path": relpath,
-                "url": f"/uploads/{relpath}",
-                "type": _file_kind(name),
+                "filename": rest,
+                "path": p,
+                "url": f"/uploads/{p}",
+                "type": _file_kind(rest),
                 "size": size_bytes,
                 "size_mb": round(size_bytes / (1024 * 1024), 2),
             })
+    for fp in all_folders:                      # pastas explícitas (inclusive vazias)
+        if prefix and not fp.startswith(prefix):
+            continue
+        rest = fp[len(prefix):]
+        if rest and "/" not in rest:
+            folder_names.add(rest)
+
+    folders = []
+    for name in sorted(folder_names, key=str.lower):
+        child_prefix = prefix + name + "/"
+        folders.append({"name": name, "path": (prefix + name).strip("/"),
+                        "count": _media_count_under(all_media, child_prefix)})
+    files.sort(key=lambda f: f["filename"].lower())
     return jsonify({"path": safe, "folders": folders, "files": files})
 
 
@@ -1442,33 +1537,36 @@ def create_folder():
     if not name:
         return jsonify({"error": "Nome de pasta inválido"}), 400
     rel = (safe_rel_path(data.get("path", "")) + "/" + name).strip("/")
-    safe, full = uploads_abs(rel)
-    if full is None:
-        return jsonify({"error": "Caminho inválido"}), 400
-    if os.path.exists(full):
+    if rel in set(db.folders_all()) or any(m["path"].startswith(rel + "/") for m in db.media_list()):
         return jsonify({"error": "Já existe uma pasta com esse nome"}), 409
-    os.makedirs(full)
-    return jsonify({"status": "ok", "path": safe}), 201
+    db.folder_add(rel)
+    return jsonify({"status": "ok", "path": rel}), 201
 
 
 @app.route("/api/library/folder", methods=["DELETE"])
 @login_required
 def delete_folder():
-    safe, full = uploads_abs(request.args.get("path", ""))
-    if not safe or full is None or not os.path.isdir(full):
+    safe = safe_rel_path(request.args.get("path", ""))
+    folders = set(db.folders_all())
+    media = db.media_list()
+    exists = (safe in folders
+              or any(f.startswith(safe + "/") for f in folders)
+              or any(m["path"].startswith(safe + "/") for m in media))
+    if not safe or not exists:
         return jsonify({"error": "Pasta não encontrada"}), 404
-    import shutil
-    shutil.rmtree(full)
+    db.media_delete_prefix(safe + "/")
+    db.folder_delete_prefix(safe + "/")
+    db.folder_delete(safe)
     return jsonify({"status": "removed"})
 
 
 @app.route("/api/library/<path:filename>", methods=["DELETE"])
 @login_required
 def delete_library(filename):
-    safe, full = uploads_abs(filename)
-    if full is None or not os.path.isfile(full):
+    safe = safe_rel_path(filename)
+    if not safe or not db.media_exists(safe):
         return jsonify({"error": "Arquivo não encontrado"}), 404
-    os.remove(full)
+    db.media_delete(safe)
     return jsonify({"status": "removed"})
 
 
@@ -1489,24 +1587,19 @@ def _replace_url_everywhere(obj, old, new):
 @login_required
 def move_file():
     data = request.get_json(silent=True) or {}
-    src_rel, src_full = uploads_abs(data.get("from", ""))
-    if src_full is None or not os.path.isfile(src_full):
+    src_rel = safe_rel_path(data.get("from", ""))
+    if not src_rel or not db.media_exists(src_rel):
         return jsonify({"error": "Arquivo não encontrado"}), 404
-    dst_rel, dst_full = uploads_abs(data.get("to", ""))
-    if dst_full is None:
-        return jsonify({"error": "Pasta de destino inválida"}), 400
-    os.makedirs(dst_full, exist_ok=True)
+    dst_rel = safe_rel_path(data.get("to", ""))
 
-    name = os.path.basename(src_full)
-    target = os.path.join(dst_full, name)
-    if os.path.exists(target):  # não sobrescreve: gera nome único
-        base, ext = os.path.splitext(name)
-        name = f"{base}_{uuid.uuid4().hex[:4]}{ext}"
-        target = os.path.join(dst_full, name)
-
-    import shutil
-    shutil.move(src_full, target)
+    name = src_rel.split("/")[-1]
     new_rel = (dst_rel + "/" + name).strip("/")
+    if new_rel != src_rel and db.media_exists(new_rel):  # não sobrescreve: nome único
+        base, dot, ext = name.rpartition(".")
+        name = f"{base}_{uuid.uuid4().hex[:4]}.{ext}" if dot else f"{name}_{uuid.uuid4().hex[:4]}"
+        new_rel = (dst_rel + "/" + name).strip("/")
+
+    db.media_move(src_rel, new_rel)
 
     # Mantém os slides apontando para o novo local
     content = load_content()
@@ -1519,7 +1612,20 @@ def move_file():
 # ── Arquivos servidos ─────────────────────────────────────────────────────────
 @app.route("/uploads/<path:filename>")
 def serve_upload(filename):
-    return send_from_directory(UPLOADS_DIR, filename)
+    safe = safe_rel_path(filename)
+    # Capturas do Grafana continuam em disco (transitórias, regeneradas a cada poucos segundos)
+    if filename.startswith("captures/") or safe.startswith("captures/"):
+        return send_from_directory(UPLOADS_DIR, safe)
+    rec = db.media_get(safe)
+    if rec is None:
+        # compatibilidade: arquivo ainda em disco (ex.: antes da migração)
+        if os.path.isfile(os.path.join(UPLOADS_DIR, safe)):
+            return send_from_directory(UPLOADS_DIR, safe)
+        abort(404)
+    data, mime = rec
+    resp = Response(data, mimetype=mime or "application/octet-stream")
+    resp.headers["Cache-Control"] = "public, max-age=300"
+    return resp
 
 
 @app.route("/")
@@ -1579,10 +1685,94 @@ def too_large(e):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-if __name__ == "__main__":
-    load_users()
-    if not os.path.exists(CONTENT_FILE):
+# Banco de dados: inicialização e migração dos dados legados (JSON + uploads/)
+# ══════════════════════════════════════════════════════════════════════════════
+_MIME = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+         "gif": "image/gif", "webp": "image/webp", "svg": "image/svg+xml",
+         "mp4": "video/mp4", "webm": "video/webm", "ogg": "video/ogg",
+         "pdf": "application/pdf"}
+
+
+def _guess_mime(name):
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    return _MIME.get(ext, "application/octet-stream")
+
+
+LEGACY_DOCS = {
+    "content": CONTENT_FILE,
+    "users": USERS_FILE,
+    "profiles": PROFILES_FILE,
+    "smtp": SMTP_FILE,
+    "integrations": INTEGRATIONS_FILE,
+    "password_resets": RESETS_FILE,
+}
+
+
+def migrate_from_files():
+    """Importa, uma única vez, os dados em arquivo (JSON + uploads/) para o banco.
+    Os arquivos atuais NÃO são apagados — servem de rollback."""
+    if db.doc_exists("__meta_migrated"):
+        return
+    imported = []
+    for key, path in LEGACY_DOCS.items():
+        if not db.doc_exists(key) and os.path.exists(path):
+            data = _read_json(path, None)
+            if data is not None:
+                db.doc_set(key, data)
+                imported.append(key)
+
+    n_files = 0
+    if os.path.isdir(UPLOADS_DIR):
+        for root, dirs, files in os.walk(UPLOADS_DIR):
+            rel_root = os.path.relpath(root, UPLOADS_DIR)
+            rel_root = "" if rel_root == "." else rel_root.replace(os.sep, "/")
+            # pula as capturas do Grafana (transitórias, regeneradas)
+            if rel_root == "captures" or rel_root.startswith("captures/"):
+                continue
+            for d in dirs:
+                if rel_root == "" and d == "captures":
+                    continue
+                rel = (rel_root + "/" + d) if rel_root else d
+                db.folder_add(rel)
+            for fn in files:
+                rel = (rel_root + "/" + fn) if rel_root else fn
+                try:
+                    with open(os.path.join(root, fn), "rb") as f:
+                        db.media_put(rel, f.read(), _guess_mime(fn))
+                    n_files += 1
+                except OSError as e:  # noqa: PERF203
+                    log.warning("Falha ao migrar mídia %s: %s", rel, e)
+
+    db.doc_set("__meta_migrated", {"at": datetime.utcnow().isoformat(),
+                                   "docs": imported, "files": n_files})
+    if imported or n_files:
+        log.info("Migração p/ o banco: %d documento(s), %d arquivo(s) de mídia.",
+                 len(imported), n_files)
+
+
+def init_database():
+    """Conecta ao Postgres (com retry), cria o schema e migra os dados legados."""
+    last = None
+    for attempt in range(1, 31):
+        try:
+            db.init_db()
+            last = None
+            break
+        except Exception as e:  # noqa: BLE001
+            last = e
+            log.warning("Aguardando o banco de dados... (tentativa %d)", attempt)
+            time.sleep(2)
+    if last is not None:
+        raise last
+    migrate_from_files()
+    if not db.doc_exists("content"):
         save_content(DEFAULT_CONTENT)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+if __name__ == "__main__":
+    init_database()
+    load_users()
 
     log.info("=" * 60)
     log.info("  TV CORPORATIVA – Servidor Central")

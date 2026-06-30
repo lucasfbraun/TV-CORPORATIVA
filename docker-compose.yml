@@ -1,11 +1,27 @@
 services:
+  db:
+    image: postgres:15-alpine
+    container_name: tv-corporativa-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tvcorp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tvcorp}
+      POSTGRES_DB: ${POSTGRES_DB:-tvcorporativa}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tvcorp} -d ${POSTGRES_DB:-tvcorporativa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   tv-corporativa:
     build: .
     container_name: tv-corporativa
     ports:
       - "8080:8080"
     volumes:
-      # Persistem entre reinícios: conteúdo, usuários/senha, sessão e uploads
+      # Persistem entre reinícios: dados legados (JSON), sessão e capturas/uploads temporários
       - ./data:/app/data
       - ./uploads:/app/uploads
       # Código ao vivo: alterações no admin/display aparecem só atualizando o navegador
@@ -16,4 +32,14 @@ services:
       - TV_PORT=8080
       # A chave do GNews vem do arquivo .env (fora do controle de versão).
       - TV_NEWS_API_KEY=${TV_NEWS_API_KEY:-}
+      # Banco de dados PostgreSQL (guarda config, grades, usuários e mídias)
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-tvcorp}:${POSTGRES_PASSWORD:-tvcorp}@db:5432/${POSTGRES_DB:-tvcorporativa}
+      # Chave para restaurar backup pela tela de login (deixe vazio para desativar)
+      - TV_RESTORE_KEY=${TV_RESTORE_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  pgdata:

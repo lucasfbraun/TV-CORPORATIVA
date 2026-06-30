@@ -6,6 +6,9 @@ waitress==3.0.0
 # Integrações com login (ex.: Grafana) — navegador headless para autenticar e capturar
 playwright==1.47.0
 
+# Banco de dados PostgreSQL
+psycopg2-binary==2.9.9
+
 # Integração de KPIs (opcional - apenas para integrations/integracao_kpi.py)
 pandas==2.2.2
 openpyxl==3.1.5

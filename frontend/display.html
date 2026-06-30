@@ -632,11 +632,50 @@ let _resolvedContent = null;  // cache de resolveContent()
 
 function getContent() { return _resolvedContent || resolveContent(); }
 
+// ── Agendamento: o slide só entra na rotação se a data/hora atual bater com a regra ──
+function _localYMD(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function _hm(d) {
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+function scheduleMatches(s, now) {
+  const sc = s.schedule;
+  if (!sc || !sc.mode || sc.mode === 'always') return true;
+  now = now || new Date();
+  if (sc.mode === 'range') {
+    const ymd = _localYMD(now);
+    if (sc.start && ymd < sc.start) return false;
+    if (sc.end && ymd > sc.end) return false;
+    return true;
+  }
+  if (sc.mode === 'recurring') {
+    const month = now.getMonth() + 1, dom = now.getDate(), dow = now.getDay(), hm = _hm(now);
+    if (sc.months && sc.months.length && !sc.months.includes(month)) return false;
+    if (sc.dom_from && dom < sc.dom_from) return false;
+    if (sc.dom_to && dom > sc.dom_to) return false;
+    if (sc.weekdays && sc.weekdays.length && !sc.weekdays.includes(dow)) return false;
+    if (sc.time_from && sc.time_to) {
+      if (sc.time_from <= sc.time_to) { if (hm < sc.time_from || hm > sc.time_to) return false; }
+      else { if (hm < sc.time_from && hm > sc.time_to) return false; }  // faixa que vira a meia-noite
+    } else if (sc.time_from && hm < sc.time_from) { return false; }
+    else if (sc.time_to && hm > sc.time_to) { return false; }
+    return true;
+  }
+  return true;
+}
+function activeSlides(content) {
+  return (content.slides || []).filter(s => s.active && s.type !== 'kpi' && scheduleMatches(s));
+}
+
+let _lastVisibleKey = '';
+
 function init() {
   _resolvedContent = resolveContent();
   const content = _resolvedContent;
   newsBlockGlobal = (content.config && content.config.news_blocklist) || '';
-  slides = (content.slides || []).filter(s => s.active && s.type !== 'kpi');
+  slides = activeSlides(content);
+  _lastVisibleKey = slides.map(s => s.id).join(',');
   const container = document.getElementById('slides-container');
   const dotsEl = document.getElementById('dots');
 
@@ -646,6 +685,17 @@ function init() {
   // build slides
   container.innerHTML = '';
   dotsEl.innerHTML = '';
+
+  // Nenhum slide programado para agora → tela neutra (a barra inferior continua)
+  if (slides.length === 0) {
+    clearTimeout(timer);
+    document.getElementById('slides-container').classList.remove('fullbleed');
+    container.innerHTML = '<div class="slide active" style="background:#0C3B38;align-items:center;justify-content:center;">'
+      + '<div style="color:rgba(255,255,255,.55);font-size:24px;">Sem conteúdo programado no momento</div></div>';
+    const pbw = document.getElementById('progress-bar-wrap'); if (pbw) pbw.style.display = 'none';
+    return;
+  }
+
   slides.forEach((s, i) => {
     let html = '';
     if      (s.type === 'announcement') html = buildAnnouncementSlide(s);
@@ -666,6 +716,13 @@ function init() {
   prefetchNews();   // pré-carrega as notícias dos slides
   goTo(0);
 }
+
+// Reavalia o agendamento a cada minuto: vira o dia/hora → slide entra ou sai sozinho da rotação
+setInterval(() => {
+  if (!_resolvedContent) return;
+  const key = activeSlides(_resolvedContent).map(s => s.id).join(',');
+  if (key !== _lastVisibleKey) init();
+}, 60 * 1000);
 
 // Duração individual de cada slide (usa slide.duration se definido, senão o padrão da grade)
 function getDuration(idx) {
