@@ -563,7 +563,7 @@ function buildMediaSlide(s) {
     media = `<div style="font-size:80px;opacity:.3">🖼️</div>`;
   } else if (isVideo) {
     // Vídeo: sem loop, avança automaticamente ao terminar
-    media = `<video id="vid-${s.id}" src="${s.url}" autoplay muted playsinline preload="auto"
+    media = `<video id="vid-${s.id}" src="${s.url}" autoplay muted playsinline
                onended="onVideoEnded(${s.id})"
                onerror="onVideoError(${s.id})"></video>`;
   } else if (ytId) {
