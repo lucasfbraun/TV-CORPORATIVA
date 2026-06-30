@@ -864,41 +864,9 @@ function startCountdown(seconds) {
   }, 1000);
 }
 
-// ── Vigia de vídeo: detecta vídeo travado/preto (não progride) e avança rápido ──
-let _vwdTimer = null, _vwdLast = -1, _vwdStuck = 0, _vwdStarted = false;
-function clearVideoWatchdog() { if (_vwdTimer) { clearInterval(_vwdTimer); _vwdTimer = null; } }
-function startVideoWatchdog() {
-  clearVideoWatchdog();
-  _vwdLast = -1; _vwdStuck = 0; _vwdStarted = false;
-  _vwdTimer = setInterval(() => {
-    const slide = slides[current];
-    if (!slide || !currentIsVideo()) { clearVideoWatchdog(); return; }
-    const vid = document.querySelector(`#slide-${slide.id} video`);
-    if (vid && vid.error) {                        // falha real de carregamento → avança já
-      clearVideoWatchdog();
-      console.warn('Vídeo com erro — avançando.');
-      goTo(current + 1); return;
-    }
-    let t = null;
-    if (vid) t = vid.currentTime;
-    else if (_ytPlayer && _ytPlayer.getCurrentTime) { try { t = _ytPlayer.getCurrentTime(); } catch (e) {} }
-    if (t === null || t === undefined) return;     // player ainda não pronto
-    if (Math.abs(t - _vwdLast) >= 0.15) { _vwdStarted = true; _vwdStuck = 0; } else { _vwdStuck++; }
-    _vwdLast = t;
-    // Já começou e travou no meio → pula em ~12s. Ainda carregando (vídeo grande) → espera ~46s.
-    const limite = _vwdStarted ? 6 : 23;
-    if (_vwdStuck >= limite) {
-      clearVideoWatchdog();
-      console.warn('Vídeo não carregou/travou — avançando para o próximo slide.');
-      goTo(current + 1);
-    }
-  }, 2000);
-}
-
 function scheduleNext(forceTimer = false) {
   clearTimeout(timer);
   clearInterval(countdownInterval);
-  clearVideoWatchdog();
   const bar = document.getElementById('progress-bar');
 
   // Integração (Grafana): fica fixa, sem timer — a própria playlist alterna sozinha
@@ -916,8 +884,7 @@ function scheduleNext(forceTimer = false) {
       bar.style.width = '99%'; // nunca chega a 100% – vídeo decide
     }, 60);
     setTimeRemaining('▶ vídeo');
-    startVideoWatchdog();   // se o vídeo travar/ficar preto, avança em ~12s
-    // Fallback final: se após 10 min o vídeo não terminar, avança
+    // Fallback: se após 10 min o vídeo não terminar, avança
     timer = setTimeout(() => goTo(current + 1), 10 * 60 * 1000);
     return;
   }
