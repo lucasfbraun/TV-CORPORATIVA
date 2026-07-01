@@ -22,6 +22,7 @@ Primeiro acesso (credenciais padrão — TROQUE no primeiro login):
 """
 
 import os
+import io
 import json
 import uuid
 import secrets
@@ -43,7 +44,7 @@ import db  # camada de dados PostgreSQL (mesmo diretório)
 
 from flask import (
     Flask, send_from_directory, request, jsonify,
-    session, redirect, url_for, abort, Response,
+    session, redirect, url_for, abort,
     send_file, after_this_request,
 )
 from werkzeug.utils import secure_filename
@@ -1623,9 +1624,21 @@ def serve_upload(filename):
             return send_from_directory(UPLOADS_DIR, safe)
         abort(404)
     data, mime = rec
-    resp = Response(data, mimetype=mime or "application/octet-stream")
-    resp.headers["Cache-Control"] = "public, max-age=300"
-    return resp
+    # Usa send_file (em vez de um Response simples) para responder corretamente a
+    # requisições HTTP Range (206 Partial Content). O <video> do navegador depende
+    # disso para carregar/buscar o arquivo em pedaços; sem Range, o servidor sempre
+    # devolve o arquivo inteiro do início, e o vídeo trava ou nem chega a iniciar em
+    # boa parte dos navegadores/TVs — regressão introduzida ao migrar a mídia para o
+    # Postgres (antes disso, send_from_directory servia do disco com suporte a Range
+    # nativo do Flask).
+    return send_file(
+        io.BytesIO(data),
+        mimetype=mime or "application/octet-stream",
+        conditional=True,
+        etag=False,
+        max_age=300,
+        download_name=os.path.basename(safe) or "arquivo",
+    )
 
 
 @app.route("/")
