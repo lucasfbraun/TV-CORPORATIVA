@@ -676,6 +676,7 @@ function init() {
   newsBlockGlobal = (content.config && content.config.news_blocklist) || '';
   slides = activeSlides(content);
   _lastVisibleKey = slides.map(s => s.id).join(',');
+  console.log('%c[TV] init() — reconstruindo slides:', 'color:#F46800;font-weight:bold', slides.length, 'slides @', new Date().toLocaleTimeString());
   const container = document.getElementById('slides-container');
   const dotsEl = document.getElementById('dots');
 
@@ -812,9 +813,13 @@ function goTo(idx) {
 
   if (all[current]) {
     all[current].classList.add('active');
-    // Iniciar vídeo do novo slide (caso o autoplay falhe)
+    // Iniciar vídeo do novo slide — reinicia do começo; se o play falhar, recarrega e tenta de novo
     const vid = all[current].querySelector('video');
-    if (vid) vid.play().catch(() => {});
+    if (vid) {
+      try { vid.currentTime = 0; } catch (e) {}
+      const pr = vid.play();
+      if (pr && pr.catch) pr.catch(() => { try { vid.load(); vid.play().catch(() => {}); } catch (e) {} });
+    }
     // Iniciar rotação de galeria
     const curSlide = slides[current];
     if (curSlide?.type === 'gallery') {
@@ -1178,16 +1183,20 @@ const SERVER_URL = (() => {
   return null; // modo arquivo local
 })();
 
+let _lastSyncStr = null;   // conteúdo rastreado EM MEMÓRIA (não depende de o localStorage persistir)
 async function syncFromServer() {
   if (!SERVER_URL) return;
   try {
     const r = await fetch(SERVER_URL + '/api/content', { cache: 'no-store' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
-    const cur = localStorage.getItem('tv_content');
     const next = JSON.stringify(data);
-    if (cur !== next) {
-      localStorage.setItem('tv_content', next);
+    if (_lastSyncStr === null) {           // 1ª sincronização: parte do que já está salvo/exibido
+      _lastSyncStr = localStorage.getItem('tv_content');
+    }
+    if (_lastSyncStr !== next) {           // só reconstrói se o conteúdo REALMENTE mudou
+      _lastSyncStr = next;
+      try { localStorage.setItem('tv_content', next); } catch (e) {}
       _resolvedContent = null; // invalida cache
       clearInterval(timer);
       init();
