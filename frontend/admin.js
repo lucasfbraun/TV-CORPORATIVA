@@ -1037,7 +1037,7 @@ function openMediaModal(id=null) {
   document.getElementById('media-duration').value = s?.duration||'';
   document.getElementById('media-fit').value      = s?.fit === 'contain' ? 'contain' : 'cover';
   document.getElementById('media-zoom').value     = s?.zoom || 100;
-  updateZoomHint();
+  document.getElementById('media-zoom-num').value = s?.zoom || 100;
   document.getElementById('media-active-toggle').classList.toggle('on', s ? !!s.active : true);
   // Limpa a área de upload (evita a miniatura do item anterior ficar "presa")
   const thumb = document.getElementById('media-upload-thumb');
@@ -1114,15 +1114,24 @@ function pickMediaFromLibrary(url) {
   document.getElementById('media-lib-grid').style.display = 'none';
   toast('📁 Arquivo selecionado da biblioteca.');
 }
-function updateZoomHint() {
-  const z = document.getElementById('media-zoom').value;
-  document.getElementById('media-zoom-val').textContent = z + '%';
+function syncZoom(origem) {
+  const range = document.getElementById('media-zoom');
+  const num   = document.getElementById('media-zoom-num');
+  if (origem === 'range') {
+    num.value = range.value;                 // arrastou a barra → atualiza o número
+  } else {
+    const v = parseInt(num.value);
+    if (!isNaN(v)) range.value = Math.max(25, Math.min(300, v));  // digitou → move a barra
+  }
 }
 
 function saveMedia() {
   const id  = document.getElementById('media-edit-id').value;
   const dur = parseInt(document.getElementById('media-duration').value) || null;
-  const zoom = parseInt(document.getElementById('media-zoom').value) || 100;
+  // Prioriza o campo digitado (clampado 25–300); a barra é o reserva
+  let zoom = parseInt(document.getElementById('media-zoom-num').value);
+  if (isNaN(zoom)) zoom = parseInt(document.getElementById('media-zoom').value) || 100;
+  zoom = Math.max(25, Math.min(300, zoom));
   const obj = {
     id: id ? parseInt(id) : nextSlideId(),
     type: 'media',
