@@ -2,28 +2,27 @@
 TV Corporativa – Integração de KPIs
 Grupo Flexível
 
-Este script lê indicadores de arquivos Excel/CSV internos
-e atualiza automaticamente o conteúdo exibido nas TVs.
+Este script lê indicadores de arquivos Excel/CSV internos e atualiza
+automaticamente o slide de KPI exibido nas TVs, via API do servidor
+(o conteúdo vive no PostgreSQL — não há mais escrita direta em arquivo).
 
 Uso:
-    pip install pandas openpyxl requests schedule
+    pip install pandas openpyxl requests
     python integracao_kpi.py
 
-O script pode rodar em segundo plano e atualizar os KPIs
-no intervalo configurado (padrão: a cada 5 minutos).
+Credenciais (usuário do painel com permissão de grade):
+    Defina as variáveis de ambiente TV_KPI_USER e TV_KPI_PASS,
+    ou preencha "usuario"/"senha" no bloco CONFIG abaixo.
+
+O script roda em segundo plano e atualiza os KPIs no intervalo
+configurado (padrão: a cada 5 minutos).
 """
 
-import json
 import os
 import time
 import logging
 from datetime import datetime
 from pathlib import Path
-
-# Raiz do projeto (este script vive em integrations/)
-ROOT_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
 
 # ── Configuração de log ───────────────────────────────────────────────────────
 logging.basicConfig(
@@ -32,8 +31,8 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("integracao_kpi.log", encoding="utf-8")
-    ]
+        logging.FileHandler("integracao_kpi.log", encoding="utf-8"),
+    ],
 )
 log = logging.getLogger(__name__)
 
@@ -44,13 +43,13 @@ CONFIG = {
     # Intervalo de atualização em segundos (300 = 5 minutos)
     "intervalo_segundos": 300,
 
-    # Arquivo de conteúdo central das TVs (compartilhado com o server.py)
-    "content_file": str(DATA_DIR / "content.json"),
+    # Endereço do servidor da TV Corporativa
+    "server_url": os.environ.get("TV_SERVER_URL", "http://localhost:8080"),
 
-    # Modo recomendado: None (arquivo local). O script escreve direto no
-    # data/content.json que o server.py também lê — sem precisar de login.
-    # OBS: o modo via API (/api/content) exige autenticação e não é usado aqui.
-    "server_url": None,
+    # Credenciais de um usuário do painel (precisa da permissão "grade").
+    # Preferência: variáveis de ambiente, para não deixar senha no código.
+    "usuario": os.environ.get("TV_KPI_USER", ""),
+    "senha":   os.environ.get("TV_KPI_PASS", ""),
 
     # Fontes de dados – configure conforme sua realidade
     "fontes": [
@@ -60,7 +59,6 @@ CONFIG = {
             "arquivo": r"kpi_dados.xlsx",
             # Aba da planilha
             "aba": "KPIs",
-            # Mapeamento: nome_coluna_excel → chave_kpi_tv
             # A planilha deve ter colunas: Indicador | Valor | Unidade | Tendencia | Direcao | Cor
             "coluna_indicador": "Indicador",
             "coluna_valor":     "Valor",
@@ -76,7 +74,7 @@ CONFIG = {
         #     "arquivo": r"\\servidor\pasta\indicadores.csv",
         #     ...
         # }
-    ]
+    ],
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -168,53 +166,81 @@ def coletar_metricas():
     return todas if todas else None
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ATUALIZAÇÃO DO CONTEÚDO
+# COMUNICAÇÃO COM O SERVIDOR (login + leitura + escrita via API)
 # ═══════════════════════════════════════════════════════════════════════════════
+_session = None  # requests.Session com o cookie de login
+
+
+def _api(path):
+    return CONFIG["server_url"].rstrip("/") + path
+
+
+def conectar():
+    """Faz login no servidor e guarda a sessão (cookie). Retorna True/False."""
+    global _session
+    import requests
+    user, pwd = CONFIG["usuario"], CONFIG["senha"]
+    if not user or not pwd:
+        log.error("Credenciais não configuradas. Defina TV_KPI_USER e TV_KPI_PASS "
+                  "(ou preencha 'usuario'/'senha' no CONFIG).")
+        return False
+    s = requests.Session()
+    try:
+        r = s.post(_api("/api/login"), json={"username": user, "password": pwd}, timeout=10)
+        if r.status_code != 200:
+            log.error(f"Login falhou ({r.status_code}): {r.text[:200]}")
+            return False
+    except Exception as e:
+        log.error(f"Não foi possível conectar ao servidor {CONFIG['server_url']}: {e}")
+        return False
+    _session = s
+    log.info("Login efetuado no servidor.")
+    return True
+
+
 def carregar_content():
-    path = CONFIG["content_file"]
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return None
+    """Busca o conteúdo atual do servidor (GET /api/content é público)."""
+    import requests
+    try:
+        r = (_session or requests).get(_api("/api/content"), timeout=10)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        log.error(f"Erro ao buscar conteúdo do servidor: {e}")
+        return None
+
 
 def salvar_content(data):
-    # Modo servidor: envia via API
-    url = CONFIG.get("server_url")
-    if url:
-        try:
-            import requests
-            r = requests.post(f"{url}/api/content", json=data, timeout=5)
-            r.raise_for_status()
-            log.info("Conteúdo enviado ao servidor com sucesso.")
-            return True
-        except Exception as e:
-            log.error(f"Erro ao enviar ao servidor: {e}")
+    """Envia o conteúdo atualizado via POST /api/content (autenticado)."""
+    if _session is None and not conectar():
+        return False
+    r = _session.post(_api("/api/content"), json=data, timeout=10)
+    if r.status_code == 401:  # sessão expirou → reloga uma vez e tenta de novo
+        log.info("Sessão expirada — refazendo login...")
+        if not conectar():
             return False
-
-    # Modo arquivo local
-    path = CONFIG["content_file"]
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    log.info(f"content.json atualizado.")
+        r = _session.post(_api("/api/content"), json=data, timeout=10)
+    if r.status_code != 200:
+        log.error(f"Erro ao salvar conteúdo ({r.status_code}): {r.text[:200]}")
+        return False
+    log.info("Conteúdo enviado ao servidor com sucesso.")
     return True
+
 
 def atualizar_kpis(metricas):
     content = carregar_content()
     if not content:
-        log.warning("content.json não encontrado. Execute o servidor ou o admin primeiro.")
+        log.warning("Não foi possível obter o conteúdo do servidor.")
         return False
 
-    # Modelo unificado: procura o slide de KPI em todas as grades
+    # Procura o slide de KPI em todas as grades
     kpi_slide = None
     for grade in content.get("grades", []):
         kpi_slide = next((s for s in grade.get("slides", []) if s.get("type") == "kpi"), None)
         if kpi_slide:
             break
-    # Compatibilidade com modelo antigo (slides na raiz)
     if not kpi_slide:
-        kpi_slide = next((s for s in content.get("slides", []) if s.get("type") == "kpi"), None)
-    if not kpi_slide:
-        log.warning("Nenhum slide de KPI encontrado no content.json. "
+        log.warning("Nenhum slide de KPI encontrado. "
                     "Crie um slide do tipo KPI no painel admin primeiro.")
         return False
 
@@ -234,29 +260,3 @@ def executar_ciclo():
             log.info(f"✅ {len(metricas)} indicador(es) atualizados com sucesso.")
         else:
             log.warning("⚠️  Falha ao salvar os indicadores.")
-    else:
-        log.warning("⚠️  Nenhum dado coletado das fontes configuradas.")
-
-def main():
-    log.info("=" * 55)
-    log.info("  TV CORPORATIVA – Integração de KPIs")
-    log.info(f"  Intervalo: {CONFIG['intervalo_segundos']}s  |  {datetime.now().strftime('%d/%m/%Y')}")
-    log.info("=" * 55)
-
-    criar_arquivo_exemplo()
-
-    # Primeira execução imediata
-    executar_ciclo()
-
-    # Loop com intervalo
-    intervalo = CONFIG["intervalo_segundos"]
-    log.info(f"Próxima atualização em {intervalo}s. Ctrl+C para encerrar.")
-    try:
-        while True:
-            time.sleep(intervalo)
-            executar_ciclo()
-    except KeyboardInterrupt:
-        log.info("Integração encerrada pelo usuário.")
-
-if __name__ == "__main__":
-    main()

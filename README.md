@@ -112,9 +112,10 @@ python tests/teste_carga.py --ip 192.168.1.10 --telas 20 --duracao 60
 ## Integração de KPIs (opcional)
 
 ```
+set TV_KPI_USER=usuario_do_painel
+set TV_KPI_PASS=senha
 python integrations/integracao_kpi.py
 ```
 
-Lê indicadores de um Excel/CSV e atualiza o slide de KPI. Edite o bloco `CONFIG`
-no início do arquivo para apontar para sua planilha. Crie antes um slide do tipo
-**KPI** no painel admin.
+Lê indicadores de um Excel/CSV e atualiza o slide de KPI **via API do servidor**
+(faz login com as credenciais acima — use um usu�
