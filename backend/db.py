@@ -85,17 +85,6 @@ def init_db():
         )
 
 
-def ping():
-    """Retorna True se o banco responde."""
-    try:
-        with get_conn() as conn, conn.cursor() as cur:
-            cur.execute("SELECT 1")
-            cur.fetchone()
-        return True
-    except Exception:
-        return False
-
-
 # ── Documentos JSON ───────────────────────────────────────────────────────────
 def doc_get(key, default=None):
     with get_conn() as conn, conn.cursor() as cur:
@@ -177,16 +166,6 @@ def media_move(old_path, new_path):
                     (new_path, old_path))
 
 
-def media_move_prefix(old_prefix, new_prefix):
-    """Move uma pasta inteira: troca o prefixo de todos os arquivos abaixo dela."""
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            "UPDATE media SET path = %s || substr(path, %s), updated_at = now() "
-            "WHERE path LIKE %s",
-            (new_prefix, len(old_prefix) + 1, old_prefix + "%"),
-        )
-
-
 # ── Pastas da biblioteca ──────────────────────────────────────────────────────
 def folder_add(path):
     with get_conn() as conn, conn.cursor() as cur:
@@ -211,13 +190,3 @@ def folders_all():
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute("SELECT path FROM media_folders ORDER BY path")
         return [r[0] for r in cur.fetchall()]
-
-
-def folder_move_prefix(old_prefix, new_prefix):
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            "UPDATE media_folders SET path = %s || substr(path, %s) WHERE path LIKE %s",
-            (new_prefix, len(old_prefix) + 1, old_prefix + "%"),
-        )
-        cur.execute("UPDATE media_folders SET path = %s WHERE path = %s",
-                    (new_prefix.rstrip("/"), old_prefix.rstrip("/")))
