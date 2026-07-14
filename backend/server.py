@@ -72,8 +72,20 @@ MAX_UPLOAD_BYTES = 300 * 1024 * 1024
 # Tipos aceitos: PNG, JPG, JPEG, MP4 e PDF
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "mp4", "pdf"}
 
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(UPLOADS_DIR, exist_ok=True)
+# Ambientes serverless (ex.: Vercel) rodam com filesystem somente leitura,
+# exceto /tmp, e sem processo persistente entre requisições. Detecta isso pra
+# desligar automaticamente o que depende de disco gravável / threads em segundo
+# plano (a Vercel define a variável de ambiente VERCEL=1).
+ON_SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
+
+try:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+except OSError:
+    # Filesystem somente leitura (ex.: Vercel). Os dados de verdade estão no
+    # Postgres (db.py); os arquivos em DATA_DIR/UPLOADS_DIR são só caches
+    # locais e mídia legada — seguem sem funcionar, sem derrubar o app.
+    pass
 
 logging.basicConfig(
     level=logging.INFO,
@@ -81,6 +93,9 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger("tv-server")
+if ON_SERVERLESS:
+    log.info("Ambiente serverless detectado (VERCEL) — workers em segundo "
+             "plano e cache em disco ficam desativados.")
 
 # ── Conteúdo padrão (modelo unificado: config / tvs / grades / rodapes) ────────
 DEFAULT_CONTENT = {
@@ -135,11 +150,17 @@ def _read_json(path, fallback):
 
 
 def _write_json(path, data):
-    """Escrita atômica para não corromper o arquivo se cair no meio."""
+    """Escrita atômica para não corromper o arquivo se cair no meio.
+    Em filesystem somente leitura (serverless) apenas loga e segue — esses
+    arquivos são caches locais (cotações, clima, notícias, secret.key de
+    fallback); os dados que importam ficam no Postgres."""
     tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+    except OSError as e:
+        log.warning("Não foi possível gravar %s (filesystem somente leitura?): %s", path, e)
 
 
 def load_content():
@@ -152,10 +173,26 @@ def save_content(data):
 
 
 def get_secret_key():
+    """Chave de sessão do Flask. Prioridade:
+    1) variável de ambiente TV_SECRET_KEY — obrigatória em serverless (Vercel),
+       pois lá não há disco persistente entre cold starts: sem isso, a cada
+       novo cold start uma chave nova seria gerada e todo mundo seria
+       deslogado.
+    2) arquivo data/secret.key (uso local/Docker, onde o disco é persistente).
+    3) gera uma chave em memória como último recurso (funciona, mas invalida
+       sessões a cada reinício — evite em produção sem disco persistente).
+    """
+    env_key = os.environ.get("TV_SECRET_KEY", "").strip()
+    if env_key:
+        return env_key
     key = _read_json(SECRET_FILE, None)
     if key:
         return key
     key = secrets.token_hex(32)
+    if ON_SERVERLESS:
+        log.warning("TV_SECRET_KEY não definida em ambiente serverless — usando chave "
+                     "temporária (sessões serão invalidadas a cada cold start). "
+                     "Defina TV_SECRET_KEY nas variáveis de ambiente da Vercel.")
     _write_json(SECRET_FILE, key)
     return key
 
@@ -1763,18 +1800,18 @@ def migrate_from_files():
                  len(imported), n_files)
 
 
-def init_database():
+def init_database(max_attempts=30, retry_delay=2):
     """Conecta ao Postgres (com retry), cria o schema e migra os dados legados."""
     last = None
-    for attempt in range(1, 31):
+    for attempt in range(1, max_attempts + 1):
         try:
             db.init_db()
             last = None
             break
         except Exception as e:  # noqa: BLE001
             last = e
-            log.warning("Aguardando o banco de dados... (tentativa %d)", attempt)
-            time.sleep(2)
+            log.warning("Aguardando o banco de dados... (tentativa %d/%d)", attempt, max_attempts)
+            time.sleep(retry_delay)
     if last is not None:
         raise last
     migrate_from_files()
@@ -1783,10 +1820,27 @@ def init_database():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-if __name__ == "__main__":
-    init_database()
+# BOOTSTRAP — roda sempre que o módulo é carregado, seja `python backend/server.py`
+# (local/Docker) ou uma importação direta do objeto `app` (Vercel/serverless e
+# outros WSGI). Isso é essencial em serverless: lá o bloco `if __name__ ==
+# "__main__"` abaixo NUNCA executa (o servidor importa `app` e chama ele
+# mesmo), então sem isso o banco nunca seria inicializado/migrado.
+# ══════════════════════════════════════════════════════════════════════════════
+try:
+    _boot_attempts = 5 if ON_SERVERLESS else 30
+    _boot_delay = 1 if ON_SERVERLESS else 2
+    init_database(max_attempts=_boot_attempts, retry_delay=_boot_delay)
     load_users()
+except Exception as e:  # noqa: BLE001
+    log.error("Falha ao inicializar o banco de dados: %s", e)
+    if not ON_SERVERLESS:
+        raise  # local/Docker: falha alto e visível, como antes
+    # Em serverless, deixa o app subir mesmo assim — melhor um 500 claro nas
+    # rotas que dependem do banco do que a função inteira falhar ao importar
+    # (o que a Vercel mostraria como erro genérico de invocação).
 
+
+if __name__ == "__main__":
     log.info("=" * 60)
     log.info("  TV CORPORATIVA – Servidor Central")
     log.info("  Admin:   http://localhost:%s/admin", PORT)
@@ -1794,7 +1848,9 @@ if __name__ == "__main__":
     log.info("=" * 60)
 
     try:
-        start_all_workers()  # inicia as integrações (Grafana etc.)
+        start_all_workers()  # inicia as integrações (Grafana etc.) — só faz sentido
+                              # com processo persistente (local/Docker), por isso
+                              # fica de fora do bootstrap acima.
     except Exception as e:  # noqa: BLE001
         log.warning("Não foi possível iniciar integrações: %s", e)
 
