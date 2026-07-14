@@ -1,0 +1,40 @@
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --brand-petrol:#0C3B38; --brand-teal:#0F7C70; --brand-lime:#76C043; --amber:#FFAB40;
+  --blue-dark:#0C3B38; --blue-mid:#14534D; --blue-light:#0F7C70;
+  --accent:#76C043; --green:#4caf50; --red:#e06c75;
+  --white:#fff; --gray:#f0f4f8; --text:#2d3a4a; --dim:#7a8fa6;
+}
+body {
+  font-family:'Roboto','Segoe UI',Arial,sans-serif;
+  background:linear-gradient(135deg,var(--blue-dark),var(--blue-mid));
+  color:var(--text); min-height:100vh;
+  display:flex; align-items:center; justify-content:center; padding:20px;
+}
+.login-card {
+  background:var(--white); border-radius:16px; padding:36px 32px;
+  box-shadow:0 10px 40px rgba(0,0,0,.35); width:100%; max-width:380px;
+}
+h1 { font-size:18px;margin:8px 0 4px;color:var(--text);text-align:center; }
+.subtitle { font-size:13px;color:var(--dim);margin-bottom:22px;text-align:center; }
+.form-group { margin-bottom:16px; }
+label { display:block;font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px; }
+.form-input {
+  width:100%;padding:11px 13px;border:1px solid #d4dde8;border-radius:9px;
+  font-size:14px;transition:border .2s;
+}
+.form-input:focus { outline:none;border-color:var(--blue-light);box-shadow:0 0 0 3px rgba(46,117,182,.12); }
+.btn-login {
+  width:100%;padding:12px;background:var(--blue-light);color:#fff;border:none;
+  border-radius:9px;font-size:15px;font-weight:600;cursor:pointer;margin-top:6px;transition:background .2s;
+}
+.btn-login:hover { background:#0c655b; }
+.btn-login:disabled { opacity:.6;cursor:default; }
+.msg { border-radius:8px;padding:9px 12px;font-size:13px;margin-bottom:14px;display:none; }
+.msg.err { background:#fdecea;color:#b5302a;border:1px solid #f5c2c0; }
+.msg.ok  { background:#eaf7ec;color:#1f7a32;border:1px solid #b6e0bf; }
+.brand-logo { text-align:center;margin-bottom:4px; }
+.brand-logo img { width:200px;max-width:100%;height:auto; }
+.brand-sub-center { text-align:center;font-size:11px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px; }
+.hint { font-size:12px;color:var(--dim);text-align:center;margin-top:18px; }
+.hint a { color:var(--blue-light);text-decoration:none;font-weight:600; }
