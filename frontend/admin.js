@@ -1035,6 +1035,9 @@ function openMediaModal(id=null) {
   document.getElementById('media-url').value      = url;
   document.getElementById('media-caption').value  = s?.caption||'';
   document.getElementById('media-duration').value = s?.duration||'';
+  document.getElementById('media-fit').value      = s?.fit === 'contain' ? 'contain' : 'cover';
+  document.getElementById('media-zoom').value     = s?.zoom || 100;
+  updateZoomHint();
   document.getElementById('media-active-toggle').classList.toggle('on', s ? !!s.active : true);
   // Limpa a área de upload (evita a miniatura do item anterior ficar "presa")
   const thumb = document.getElementById('media-upload-thumb');
@@ -1111,9 +1114,15 @@ function pickMediaFromLibrary(url) {
   document.getElementById('media-lib-grid').style.display = 'none';
   toast('📁 Arquivo selecionado da biblioteca.');
 }
+function updateZoomHint() {
+  const z = document.getElementById('media-zoom').value;
+  document.getElementById('media-zoom-val').textContent = z + '%';
+}
+
 function saveMedia() {
   const id  = document.getElementById('media-edit-id').value;
   const dur = parseInt(document.getElementById('media-duration').value) || null;
+  const zoom = parseInt(document.getElementById('media-zoom').value) || 100;
   const obj = {
     id: id ? parseInt(id) : nextSlideId(),
     type: 'media',
@@ -1121,6 +1130,8 @@ function saveMedia() {
     url:      document.getElementById('media-url').value,
     caption:  document.getElementById('media-caption').value,
     duration: dur,
+    fit:      document.getElementById('media-fit').value === 'contain' ? 'contain' : 'cover',
+    zoom:     zoom === 100 ? null : zoom,   // só grava se diferente do padrão
   };
   pushOrUpdateSlide(obj, id);
   save(DATA); renderAll(); closeModal('modal-media'); toast('Mídia salva!');

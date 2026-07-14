@@ -224,9 +224,11 @@
   }
   /* Integração (Grafana): preenche a área toda (sem cortar o topo nem deixar vão/barras) */
   .slide-integration .media-fg { object-fit: fill; }
-  /* Vídeo e imagem: preenchem toda a área acima da barra (cover) — sem faixas, sem esticar. */
+  /* Vídeo e imagem: preenchem toda a área acima da barra (cover) — sem faixas, sem esticar.
+     O ajuste/zoom por mídia (admin) sobrepõe via style inline. */
   .slide-media video { object-fit: cover; }
   .slide-media img.media-fg { object-fit: cover; }
+  .slide-media { overflow: hidden; }  /* zoom > 100% não vaza para fora do slide */
   .slide-media iframe { width: 100%; height: 100%; border: none; }
   /* YouTube: preenche toda a área (cover), sem barras pretas, mantendo o rodapé */
   .slide-media .yt-wrap { position: absolute; inset: 0; overflow: hidden; }

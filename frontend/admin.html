@@ -1057,6 +1057,19 @@
       <input class="form-input" type="number" id="media-duration" min="3" max="3600" placeholder="Ex: 30 para imagens">
       <small id="media-dur-hint" style="color:var(--dim);font-size:11px;">Deixe em branco para usar a duração padrão da grade.</small>
     </div>
+    <div class="form-group">
+      <label class="form-label">🔍 Ajuste na tela</label>
+      <select class="form-input" id="media-fit" onchange="updateZoomHint()">
+        <option value="cover">Preencher a tela (pode cortar as bordas)</option>
+        <option value="contain">Mostrar inteira (sem cortes, com fundo desfocado)</option>
+      </select>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+        <input type="range" id="media-zoom" min="50" max="200" step="5" value="100"
+               style="flex:1;" oninput="updateZoomHint()">
+        <span id="media-zoom-val" style="min-width:44px;text-align:right;font-weight:600;">100%</span>
+      </div>
+      <small style="color:var(--dim);font-size:11px;">Zoom fino sobre o ajuste escolhido — 100% = normal. Vale para imagem, vídeo e PDF.</small>
+    </div>
     <div class="toggle-row">
       <div class="toggle on" id="media-active-toggle" onclick="this.classList.toggle('on')"></div>
       <span class="toggle-label">Slide ativo</span>

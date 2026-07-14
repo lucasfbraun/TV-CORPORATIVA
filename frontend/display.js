@@ -171,25 +171,36 @@ function buildMediaSlide(s) {
   const isVideo = s.url && s.url.match(/\.(mp4|webm|ogg)$/i);
   const ytId = youtubeId(s.url);
   const isPdf = s.url && /\.pdf(\?|#|$)/i.test(s.url);
+  // Ajuste por mídia (configurável no admin): fit = cover (preenche/corta) ou
+  // contain (inteira, sem corte); zoom = escala fina em % (100 = normal).
+  const fit  = s.fit === 'contain' ? 'contain' : 'cover';
+  const zoom = Math.max(25, Math.min(300, parseInt(s.zoom) || 100));
+  const fitStyle = `object-fit:${fit};` +
+                   (zoom !== 100 ? `transform:scale(${zoom / 100});transform-origin:center center;` : '');
   let media;
   if (!s.url) {
     media = `<div style="font-size:80px;opacity:.3">🖼️</div>`;
   } else if (isVideo) {
     // Vídeo: sem loop, avança automaticamente ao terminar
     media = `<video id="vid-${s.id}" src="${s.url}" autoplay muted playsinline
+               style="${fitStyle}"
                onended="onVideoEnded(${s.id})"
                onerror="onVideoError(${s.id})"></video>`;
   } else if (ytId) {
     // YouTube: o player é criado via API ao exibir o slide (avança no fim do vídeo)
     media = `<div class="yt-wrap"><div id="ytm-${s.id}"></div></div>`;
   } else if (isPdf) {
-    // PDF: exibe em tela cheia, sem a barra de ferramentas do leitor
+    // PDF: exibe em tela cheia, sem a barra de ferramentas do leitor.
+    // O zoom escala o iframe inteiro (com compensação de tamanho p/ não vazar).
+    const pdfZoom = zoom !== 100
+      ? `width:${10000 / zoom}%;height:${10000 / zoom}%;transform:scale(${zoom / 100});transform-origin:top left;`
+      : 'width:100%;height:100%;';
     media = `<iframe src="${s.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH"
-               style="width:100%;height:100%;border:none;background:#fff;"></iframe>`;
+               style="${pdfZoom}border:none;background:#fff;"></iframe>`;
   } else {
     const u = s.url.replace(/'/g, '%27');
     media = `<div class="media-bg" style="background-image:url('${u}')"></div>
-             <img class="media-fg" src="${s.url}" alt="${s.caption||''}">`;
+             <img class="media-fg" src="${s.url}" alt="${s.caption||''}" style="${fitStyle}">`;
   }
   return `
     <div class="slide slide-media" id="slide-${s.id}" data-is-video="${isVideo?'1':'0'}">
