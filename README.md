@@ -13,21 +13,31 @@ tv corporativa/
 ├── iniciar_servidor.bat      ← clique aqui para ligar o servidor (Windows)
 ├── requirements.txt          ← dependências Python
 ├── backend/
-│   └── server.py             ← servidor central (Flask)
+│   ├── server.py             ← ponto de entrada (cria o app e registra as rotas)
+│   ├── config.py             ← caminhos, constantes e conteúdo padrão
+│   ├── db.py                 ← camada de dados (PostgreSQL)
+│   ├── storage.py            ← documentos: conteúdo, usuários, perfis
+│   ├── security.py           ← autenticação e permissões
+│   ├── mailer.py             ← SMTP e envio de e-mail
+│   ├── migration.py          ← init do banco + migração de dados legados
+│   ├── grafana.py            ← workers de captura (Playwright)
+│   └── *_routes.py           ← rotas por área (auth, users, system, content,
+│                                integrations, media, pages)
 ├── frontend/
 │   ├── login.html            ← tela de login do admin
-│   ├── admin.html            ← painel de administração
-│   ├── display.html          ← tela exibida nas TVs
-│   └── *.html                ← guias e documentação
+│   ├── reset.html            ← redefinição de senha
+│   ├── admin.html/.css/.js   ← painel de administração
+│   ├── display.html/.css/.js ← tela exibida nas TVs
+│   └── assets/               ← logo e imagens fixas
 ├── integrations/
-│   └── integracao_kpi.py     ← atualiza KPIs a partir de Excel/CSV
+│   └── integracao_kpi.py     ← atualiza KPIs a partir de Excel/CSV (via API)
 ├── tests/
 │   └── teste_carga.py        ← teste de carga (várias TVs simultâneas)
 ├── scripts/
 │   └── setup_tv.bat          ← configura uma TV em modo quiosque
-├── docs/                     ← documento mestre e cronogramas
-├── data/                     ← (gerado) content.json, usuários, sessão
-└── uploads/                  ← (gerado) imagens e vídeos enviados
+├── docs/                     ← documento mestre, cronograma, guias e manuais
+├── data/                     ← (gerado) caches locais e chave de sessão
+└── uploads/                  ← (gerado) capturas do Grafana e mídia legada
 ```
 
 > `data/` e `uploads/` são criados automaticamente na primeira execução.
@@ -82,40 +92,14 @@ O *slug* (`recepcao`, `producao`, ...) é definido no painel admin, em **TVs**.
 ## Arquitetura (como tudo se conecta)
 
 ```
-  Excel/CSV ──► integracao_kpi.py ──┐
+  Excel/CSV ──► integracao_kpi.py ──┐ (login + POST)
                                     ▼
-   Admin (login) ──POST /api/content──►  data/content.json  ◄──┐
-                                    ▲                            │
-                                    └──GET /api/content──────────┘
+   Admin (login) ──POST /api/content──►  PostgreSQL  ◄──┐
+                                    ▲                     │
+                                    └──GET /api/content───┘
                                               ▲
                           TVs (display) ──────┘  (sincroniza a cada 60s)
 ```
 
-- O **servidor** é a fonte única de verdade (`data/content.json`).
-- O **admin** salva no servidor; as **TVs** buscam do servidor e atualizam sozinhas.
-- A integração de KPIs escreve direto no `data/content.json`.
-
-## Segurança
-
-- O painel admin e todas as rotas de escrita exigem **login** (senha com hash).
-- As URLs das TVs (`/tela/...`) são públicas na rede interna, sem token — conforme
-  premissa do projeto.
-- Uploads aceitam apenas imagens/vídeos (whitelist) e têm limite de 300 MB.
-
-## Testes
-
-```
-# Com o servidor rodando:
-python tests/teste_carga.py --ip 192.168.1.10 --telas 20 --duracao 60
-```
-
-## Integração de KPIs (opcional)
-
-```
-set TV_KPI_USER=usuario_do_painel
-set TV_KPI_PASS=senha
-python integrations/integracao_kpi.py
-```
-
-Lê indicadores de um Excel/CSV e atualiza o slide de KPI **via API do servidor**
-(faz login com as credenciais acima — use um usu�
+- O **banco PostgreSQL** é a fonte única de verdade (conteúdo, usuários, mídias).
+- O **admin** salva no servidor; 
