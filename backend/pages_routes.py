@@ -64,4 +64,4 @@ def static_files(filename):
 
 @bp.app_errorhandler(413)
 def too_large(e):
-    retur
+    return jsonify({"error": "Arquivo excede o limite de 300 MB"}), 413

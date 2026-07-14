@@ -102,4 +102,30 @@ O *slug* (`recepcao`, `producao`, ...) é definido no painel admin, em **TVs**.
 ```
 
 - O **banco PostgreSQL** é a fonte única de verdade (conteúdo, usuários, mídias).
-- O **admin** salva no servidor; 
+- O **admin** salva no servidor; as **TVs** buscam do servidor e atualizam sozinhas.
+- A integração de KPIs autentica na API e atualiza o slide de KPI.
+
+## Segurança
+
+- O painel admin e todas as rotas de escrita exigem **login** (senha com hash).
+- As URLs das TVs (`/tela/...`) são públicas na rede interna, sem token — conforme
+  premissa do projeto.
+- Uploads aceitam apenas imagens/vídeos (whitelist) e têm limite de 300 MB.
+
+## Testes
+
+```
+# Com o servidor rodando:
+python tests/teste_carga.py --ip 192.168.1.10 --telas 20 --duracao 60
+```
+
+## Integração de KPIs (opcional)
+
+```
+set TV_KPI_USER=usuario_do_painel
+set TV_KPI_PASS=senha
+python integrations/integracao_kpi.py
+```
+
+Lê indicadores de um Excel/CSV e atualiza o slide de KPI **via API do servidor**
+(faz login com as credenciais acima — use um usu�
