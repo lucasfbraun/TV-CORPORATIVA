@@ -1709,11 +1709,9 @@ def reset_page():
     return send_from_directory(FRONTEND_DIR, "reset.html")
 
 
-# Páginas públicas (display + documentação). admin.html é protegido acima.
-PUBLIC_PAGES = {
-    "display.html", "guia_player.html", "manual_usuario.html",
-    "protocolo_testes.html", "relatorio_final.html", "login.html", "reset.html",
-}
+# Páginas públicas. admin.html é protegido acima; a documentação vive em docs/
+# e não é servida pelo servidor.
+PUBLIC_PAGES = {"display.html", "login.html", "reset.html"}
 
 
 @app.route("/<path:filename>")

@@ -126,7 +126,7 @@ echo.
 echo   Proximos passos:
 echo   1. Reinicie o computador para testar o autostart
 echo   2. Verifique se a TV abre em tela cheia automaticamente
-echo   3. Acesse o protocolo_testes.html para registrar os resultados
+echo   3. Abra docs/protocolo_testes.html para registrar os resultados
 echo.
 pause
-endlocal
+endloca
