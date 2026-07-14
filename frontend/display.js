@@ -172,16 +172,19 @@ function buildMediaSlide(s) {
   const ytId = youtubeId(s.url);
   const isPdf = s.url && /\.pdf(\?|#|$)/i.test(s.url);
   // Ajuste por mídia (configurável no admin): fit = cover (preenche/corta) ou
-  // contain (inteira, sem corte); zoomX/zoomY = escala fina por eixo em %
-  // (100 = normal; 'zoom' único é o campo legado e vale para os dois eixos).
+  // contain (inteira, sem corte) — vale quando os eixos estão em 100%.
+  // zoomX/zoomY ≠ 100 definem o TAMANHO da caixa do conteúdo na tela
+  // (largura % × altura %, centralizada) e o conteúdo é esticado exatamente
+  // para ela (object-fit:fill) → muda a proporção SEM cortar. Acima de 100%
+  // a caixa passa da tela e aí sim as bordas saem do quadro.
   const fit = s.fit === 'contain' ? 'contain' : 'cover';
   const clamp = v => Math.max(25, Math.min(300, parseInt(v) || 100));
   const zx = clamp(s.zoomX || s.zoom);
   const zy = clamp(s.zoomY || s.zoom);
-  const fitStyle = `object-fit:${fit};` +
-                   (zx !== 100 || zy !== 100
-                     ? `transform:scale(${zx / 100},${zy / 100});transform-origin:center center;`
-                     : '');
+  const fitStyle = (zx === 100 && zy === 100)
+    ? `object-fit:${fit};`
+    : `position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);` +
+      `width:${zx}%;height:${zy}%;object-fit:fill;z-index:1;`;
   let media;
   if (!s.url) {
     media = `<div style="font-size:80px;opacity:.3">🖼️</div>`;
@@ -196,9 +199,9 @@ function buildMediaSlide(s) {
     media = `<div class="yt-wrap"><div id="ytm-${s.id}"></div></div>`;
   } else if (isPdf) {
     // PDF: exibe em tela cheia, sem a barra de ferramentas do leitor.
-    // O zoom escala o iframe inteiro (com compensação de tamanho por eixo p/ não vazar).
+    // O zoom redimensiona a caixa do PDF (centralizada), sem cortar.
     const pdfZoom = (zx !== 100 || zy !== 100)
-      ? `width:${10000 / zx}%;height:${10000 / zy}%;transform:scale(${zx / 100},${zy / 100});transform-origin:top left;`
+      ? `position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:${zx}%;height:${zy}%;`
       : 'width:100%;height:100%;';
     media = `<iframe src="${s.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH"
                style="${pdfZoom}border:none;background:#fff;"></iframe>`;
