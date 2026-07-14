@@ -172,11 +172,16 @@ function buildMediaSlide(s) {
   const ytId = youtubeId(s.url);
   const isPdf = s.url && /\.pdf(\?|#|$)/i.test(s.url);
   // Ajuste por mídia (configurável no admin): fit = cover (preenche/corta) ou
-  // contain (inteira, sem corte); zoom = escala fina em % (100 = normal).
-  const fit  = s.fit === 'contain' ? 'contain' : 'cover';
-  const zoom = Math.max(25, Math.min(300, parseInt(s.zoom) || 100));
+  // contain (inteira, sem corte); zoomX/zoomY = escala fina por eixo em %
+  // (100 = normal; 'zoom' único é o campo legado e vale para os dois eixos).
+  const fit = s.fit === 'contain' ? 'contain' : 'cover';
+  const clamp = v => Math.max(25, Math.min(300, parseInt(v) || 100));
+  const zx = clamp(s.zoomX || s.zoom);
+  const zy = clamp(s.zoomY || s.zoom);
   const fitStyle = `object-fit:${fit};` +
-                   (zoom !== 100 ? `transform:scale(${zoom / 100});transform-origin:center center;` : '');
+                   (zx !== 100 || zy !== 100
+                     ? `transform:scale(${zx / 100},${zy / 100});transform-origin:center center;`
+                     : '');
   let media;
   if (!s.url) {
     media = `<div style="font-size:80px;opacity:.3">🖼️</div>`;
@@ -191,9 +196,9 @@ function buildMediaSlide(s) {
     media = `<div class="yt-wrap"><div id="ytm-${s.id}"></div></div>`;
   } else if (isPdf) {
     // PDF: exibe em tela cheia, sem a barra de ferramentas do leitor.
-    // O zoom escala o iframe inteiro (com compensação de tamanho p/ não vazar).
-    const pdfZoom = zoom !== 100
-      ? `width:${10000 / zoom}%;height:${10000 / zoom}%;transform:scale(${zoom / 100});transform-origin:top left;`
+    // O zoom escala o iframe inteiro (com compensação de tamanho por eixo p/ não vazar).
+    const pdfZoom = (zx !== 100 || zy !== 100)
+      ? `width:${10000 / zx}%;height:${10000 / zy}%;transform:scale(${zx / 100},${zy / 100});transform-origin:top left;`
       : 'width:100%;height:100%;';
     media = `<iframe src="${s.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH"
                style="${pdfZoom}border:none;background:#fff;"></iframe>`;

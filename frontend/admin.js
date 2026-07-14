@@ -1035,9 +1035,14 @@ function openMediaModal(id=null) {
   document.getElementById('media-url').value      = url;
   document.getElementById('media-caption').value  = s?.caption||'';
   document.getElementById('media-duration').value = s?.duration||'';
-  document.getElementById('media-fit').value      = s?.fit === 'contain' ? 'contain' : 'cover';
-  document.getElementById('media-zoom').value     = s?.zoom || 100;
-  document.getElementById('media-zoom-num').value = s?.zoom || 100;
+  document.getElementById('media-fit').value = s?.fit === 'contain' ? 'contain' : 'cover';
+  // Compatibilidade: mídias antigas têm 'zoom' único → vira os dois eixos
+  const zx = s?.zoomX || s?.zoom || 100;
+  const zy = s?.zoomY || s?.zoom || 100;
+  document.getElementById('media-zoom-x').value     = zx;
+  document.getElementById('media-zoom-x-num').value = zx;
+  document.getElementById('media-zoom-y').value     = zy;
+  document.getElementById('media-zoom-y-num').value = zy;
   document.getElementById('media-active-toggle').classList.toggle('on', s ? !!s.active : true);
   // Limpa a área de upload (evita a miniatura do item anterior ficar "presa")
   const thumb = document.getElementById('media-upload-thumb');
@@ -1114,9 +1119,9 @@ function pickMediaFromLibrary(url) {
   document.getElementById('media-lib-grid').style.display = 'none';
   toast('📁 Arquivo selecionado da biblioteca.');
 }
-function syncZoom(origem) {
-  const range = document.getElementById('media-zoom');
-  const num   = document.getElementById('media-zoom-num');
+function syncZoom(eixo, origem) {
+  const range = document.getElementById('media-zoom-' + eixo);
+  const num   = document.getElementById('media-zoom-' + eixo + '-num');
   if (origem === 'range') {
     num.value = range.value;                 // arrastou a barra → atualiza o número
   } else {
@@ -1125,13 +1130,16 @@ function syncZoom(origem) {
   }
 }
 
+function lerZoom(eixo) {
+  let v = parseInt(document.getElementById('media-zoom-' + eixo + '-num').value);
+  if (isNaN(v)) v = parseInt(document.getElementById('media-zoom-' + eixo).value) || 100;
+  return Math.max(25, Math.min(300, v));
+}
+
 function saveMedia() {
   const id  = document.getElementById('media-edit-id').value;
   const dur = parseInt(document.getElementById('media-duration').value) || null;
-  // Prioriza o campo digitado (clampado 25–300); a barra é o reserva
-  let zoom = parseInt(document.getElementById('media-zoom-num').value);
-  if (isNaN(zoom)) zoom = parseInt(document.getElementById('media-zoom').value) || 100;
-  zoom = Math.max(25, Math.min(300, zoom));
+  const zoomX = lerZoom('x'), zoomY = lerZoom('y');
   const obj = {
     id: id ? parseInt(id) : nextSlideId(),
     type: 'media',
@@ -1140,7 +1148,9 @@ function saveMedia() {
     caption:  document.getElementById('media-caption').value,
     duration: dur,
     fit:      document.getElementById('media-fit').value === 'contain' ? 'contain' : 'cover',
-    zoom:     zoom === 100 ? null : zoom,   // só grava se diferente do padrão
+    zoomX:    zoomX === 100 ? null : zoomX,   // só grava se diferente do padrão
+    zoomY:    zoomY === 100 ? null : zoomY,
+    zoom:     null,                            // campo legado (migrado p/ zoomX/zoomY)
   };
   pushOrUpdateSlide(obj, id);
   save(DATA); renderAll(); closeModal('modal-media'); toast('Mídia salva!');
