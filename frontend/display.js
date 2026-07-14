@@ -856,3 +856,41 @@ setInterval(() => location.reload(), 4 * 60 * 60 * 1000);
 // ── START ──
 init();
 syncFromServer();
+
+// ═══════════════════════════════════════════════════════
+// ANTI-STANDBY – impede a TV/browser de dormir, em 2 camadas:
+// 1) Wake Lock API (Chrome, Android TV, webOS/Tizen recentes)
+// 2) Vídeo mudo invisível em loop — o browser da TV entende como
+//    "mídia em reprodução" e não entra em standby (técnica NoSleep)
+// ═══════════════════════════════════════════════════════
+(function keepAwake() {
+  // Camada 1: Wake Lock API
+  let wakeLock = null;
+  async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } catch (e) { wakeLock = null; }  // sem suporte/permissão: segue na camada 2
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && !wakeLock) requestWakeLock();
+  });
+  setInterval(() => { if (!wakeLock) requestWakeLock(); }, 60 * 1000);
+  requestWakeLock();
+
+  // Camada 2: vídeo keepalive (2s, 1,6 KB, mudo, fora da tela)
+  const v = document.createElement('video');
+  v.muted = true;
+  v.loop = true;
+  v.setAttribute('muted', '');        // atributo explícito: exigido p/ autoplay em algumas TVs
+  v.setAttribute('playsinline', '');
+  v.src = '/assets/keepawake.mp4';
+  v.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:2px;height:2px;opacity:0;pointer-events:none;';
+  document.body.appendChild(v);
+  const play = () => { v.play().catch(() => {}); };
+  v.addEventListener('pause', play);   // se a TV pausar, retoma
+  v.addEventListener('error', () => setTimeout(() => { v.load(); play(); }, 5000));
+  setInterval(play, 30 * 1000);        // garantia periódica
+  play();
+})();

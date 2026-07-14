@@ -54,7 +54,8 @@ def static_files(filename):
     if base == "admin.html":
         return redirect("/admin")
     if filename in PUBLIC_PAGES or filename.endswith((".css", ".js", ".png", ".jpg",
-                                                       ".svg", ".ico", ".woff", ".woff2")):
+                                                       ".svg", ".ico", ".woff", ".woff2",
+                                                       ".mp4")):
         full = os.path.join(FRONTEND_DIR, filename)
         if os.path.isfile(full):
             return send_from_directory(FRONTEND_DIR, filename)
@@ -63,4 +64,4 @@ def static_files(filename):
 
 @bp.app_errorhandler(413)
 def too_large(e):
-    return jsonify({"error": "Arquivo excede o limite de 300 MB"}), 413
+    retur
