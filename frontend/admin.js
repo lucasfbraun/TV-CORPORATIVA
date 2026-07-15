@@ -1242,6 +1242,7 @@ function openGrafanaModal() {
   document.getElementById('grafana-user').value = _grafana?.username || '';
   document.getElementById('grafana-pass').value = '';
   document.getElementById('grafana-interval').value = _grafana?.interval || 20;
+  document.getElementById('grafana-zoom').value = _grafana?.zoom || 100;
   openModal('modal-grafana');
 }
 
@@ -1249,6 +1250,7 @@ async function saveGrafanaCreds() {
   const body = {
     username: document.getElementById('grafana-user').value.trim(),
     interval: parseInt(document.getElementById('grafana-interval').value) || 20,
+    zoom: Math.max(25, Math.min(200, parseInt(document.getElementById('grafana-zoom').value) || 100)),
   };
   const pass = document.getElementById('grafana-pass').value;
   if (pass) body.password = pass;
@@ -1280,6 +1282,7 @@ function openIntegrationModal(id=null) {
   document.getElementById('integration-user').value = i?.username || '';
   document.getElementById('integration-pass').value = '';
   document.getElementById('integration-interval').value = i?.interval || 20;
+  document.getElementById('integration-zoom').value = i?.zoom || 100;
   document.getElementById('integration-modal-title').textContent = id ? 'Editar Integração' : 'Nova Integração';
   openModal('modal-integration');
 }
@@ -1292,6 +1295,7 @@ async function saveIntegration() {
     url: document.getElementById('integration-url').value.trim(),
     username: document.getElementById('integration-user').value,
     interval: parseInt(document.getElementById('integration-interval').value) || 20,
+    zoom: Math.max(25, Math.min(200, parseInt(document.getElementById('integration-zoom').value) || 100)),
   };
   const pass = document.getElementById('integration-pass').value;
   if (pass) body.password = pass;

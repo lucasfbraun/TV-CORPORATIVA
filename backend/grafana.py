@@ -17,7 +17,7 @@ GRAFANA_URL = ("https://monitoramento.techmaster.inf.br/d/SKHAi2oGz/incidentes"
                "?orgId=4&from=now-6h&to=now&timezone=America%2FSao_Paulo"
                "&var-GRUPO=$__all&var-HOST=$__all&refresh=30s")
 GRAFANA_PLAYLIST = "FLEXIVEL"
-GRAFANA_ZOOM = 1.0  # zoom da página na captura (1.0 = 100%, preenche a tela toda)
+GRAFANA_ZOOM = 1.0  # zoom padrão (legado) — o valor por integração vem do campo 'zoom' (%)
 GRAFANA_REFRESH = "30s"  # auto-refresh dos painéis no navegador (mantém os dados atuais)
 GRAFANA_AUTH_FILE = os.path.join(DATA_DIR, "grafana_auth.json")
 
@@ -35,7 +35,8 @@ def public_integration(iid, c):
     return {
         "id": iid, "type": c.get("type", "grafana"), "name": c.get("name", ""),
         "url": c.get("url", ""), "username": c.get("username", ""),
-        "interval": c.get("interval", 20), "active": c.get("active", True),
+        "interval": c.get("interval", 20), "zoom": c.get("zoom", 100),
+        "active": c.get("active", True),
         "has_password": bool(c.get("password")),
         "status": (_intg_threads.get(iid, {}) or {}).get("status", "parado"),
     }
@@ -50,6 +51,7 @@ def ensure_grafana_integration():
     g["url"] = GRAFANA_URL
     g["playlist"] = GRAFANA_PLAYLIST
     g.setdefault("interval", 10)
+    g.setdefault("zoom", 100)
     g.setdefault("username", "")
     g.setdefault("password", "")
     g.setdefault("active", True)
@@ -169,11 +171,15 @@ def integration_worker(iid, stop):
                         page.wait_for_timeout(4000)
                         if iid in _intg_threads:
                             _intg_threads[iid]["status"] = "ok"
-                    if is_grafana and GRAFANA_ZOOM != 1.0:
-                        try:
-                            page.evaluate("(z) => document.documentElement.style.zoom = z", str(GRAFANA_ZOOM))
-                        except Exception:  # noqa: BLE001
-                            pass
+                    # Zoom da captura (config. no painel): <100% "afasta a câmera"
+                    # e mostra mais conteúdo; >100% aproxima. Reaplicado a cada
+                    # ciclo pois navegações da playlist podem resetar o estilo.
+                    try:
+                        z = max(25, min(200, int(cur.get("zoom") or 100)))
+                        page.evaluate("(z) => document.documentElement.style.zoom = z",
+                                      str(z / 100))
+                    except Exception:  # noqa: BLE001
+                        pass
                     tmp = out + ".tmp.png"
                     page.screenshot(path=tmp)
                     os.replace(tmp, out)

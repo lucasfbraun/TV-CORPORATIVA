@@ -475,10 +475,17 @@
       <label class="form-label">Senha</label>
       <input class="form-input" id="grafana-pass" type="password" autocomplete="new-password" placeholder="(em branco = manter a atual)">
     </div>
-    <div class="form-group">
-      <label class="form-label">Atualizar o print a cada (segundos)</label>
-      <input class="form-input" type="number" id="grafana-interval" min="10" max="600" value="20">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Atualizar o print a cada (segundos)</label>
+        <input class="form-input" type="number" id="grafana-interval" min="10" max="600" value="20">
+      </div>
+      <div class="form-group">
+        <label class="form-label">🔍 Zoom da captura (%)</label>
+        <input class="form-input" type="number" id="grafana-zoom" min="25" max="200" step="5" value="100">
+      </div>
     </div>
+    <small style="display:block;color:var(--dim);font-size:11px;margin:-4px 0 12px;">Menos de 100% "afasta a câmera" e mostra mais painéis na tela; mais de 100% aproxima.</small>
     <small style="display:block;color:var(--dim);font-size:11px;margin:-4px 0 12px;">🔒 As credenciais ficam só no servidor. Ao salvar, ele faz login novamente e reinicia a captura.</small>
     <div class="action-row-end">
       <button class="btn btn-outline" onclick="closeModal('modal-grafana')">Cancelar</button>
@@ -524,6 +531,10 @@
       <div class="form-group">
         <label class="form-label">Atualizar a cada (s)</label>
         <input class="form-input" type="number" id="integration-interval" min="5" max="600" value="20">
+      </div>
+      <div class="form-group">
+        <label class="form-label">🔍 Zoom (%)</label>
+        <input class="form-input" type="number" id="integration-zoom" min="25" max="200" step="5" value="100">
       </div>
     </div>
     <small style="display:block;color:var(--dim);font-size:11px;margin:-4px 0 12px;">🔒 A senha fica só no servidor — não vai para as TVs nem para o conteúdo público.</small>

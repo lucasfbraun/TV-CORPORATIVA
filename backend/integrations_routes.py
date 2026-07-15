@@ -35,7 +35,9 @@ def create_integration():
     d[iid] = {
         "type": data.get("type", "grafana"), "name": name, "url": url,
         "username": data.get("username", ""), "password": data.get("password", ""),
-        "interval": int(data.get("interval") or 20), "active": True,
+        "interval": int(data.get("interval") or 20),
+        "zoom": max(25, min(200, int(data.get("zoom") or 100))),
+        "active": True,
     }
     save_integrations(d)
     start_worker(iid)
@@ -56,6 +58,8 @@ def update_integration(iid):
             c[k] = data[k]
     if "interval" in data:
         c["interval"] = int(data.get("interval") or 20)
+    if "zoom" in data:
+        c["zoom"] = max(25, min(200, int(data.get("zoom") or 100)))
     if data.get("password"):  # só troca a senha se uma nova for enviada
         c["password"] = data["password"]
     save_integrations(d)
