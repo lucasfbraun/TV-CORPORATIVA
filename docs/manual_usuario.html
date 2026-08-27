@@ -112,6 +112,7 @@ tr:last-child td { border:none; }
       <a class="sb-link" href="#servidor">Servidor Local</a>
       <a class="sb-link" href="#duracao">Duração dos Slides</a>
       <a class="sb-link" href="#backup">Backup</a>
+      <a class="sb-link" href="#ldap">Login via Active Directory</a>
     </div>
   </div>
   <div class="sb-footer">Grupo Flexível © 2026</div>
@@ -291,6 +292,35 @@ http://[IP]:8080/display.html?tv=recepcao</pre>
 <div class="warn">
   <span class="warn-icon">⚠️</span>
   <span>Limpar os dados do navegador apaga o conteúdo salvo. Exporte periodicamente como precaução.</span>
+</div>
+
+<h2 id="ldap">Login via Active Directory (LDAP)</h2>
+<p>É possível vincular um usuário deste painel a uma conta do Active Directory da empresa. Depois de vinculado, o
+login desse usuário passa a ser validado direto no AD: a senha local deixa de ser usada, e se a conta for
+desativada no AD, o acesso ao painel também é bloqueado automaticamente — sem precisar remover o usuário aqui.</p>
+
+<h3>1. Configurar a conexão com o AD</h3>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body">Acesse <b>🔐 LDAP / Active Directory</b>, em Sistema, no menu lateral.</div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body">Preencha servidor, porta, domínio (sufixo UPN) e Base DN, e ligue <b>Habilitar login via AD</b>.</div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body">Informe uma <b>conta de serviço</b> (usuário técnico com permissão só de leitura/busca no AD) e a senha dela.</div></div>
+  <div class="step"><div class="step-num">4</div><div class="step-body">Clique em <b>💾 Salvar</b> e use <b>🔎 Buscar no AD</b> para confirmar que a conexão está funcionando (não usa senha de ninguém, só confirma se a busca acha um usuário de teste).</div></div>
+</div>
+<div class="warn">
+  <span class="warn-icon">⚠️</span>
+  <span>Prefira ligar <b>Usar StartTLS</b>: sem isso, as senhas trafegam sem criptografia entre o painel e o AD na rede interna.</span>
+</div>
+
+<h3>2. Vincular um usuário existente ao AD</h3>
+<div class="steps">
+  <div class="step"><div class="step-num">1</div><div class="step-body">Acesse <b>👤 Usuários</b>, clique em <b>✏️ Editar</b> no usuário desejado.</div></div>
+  <div class="step"><div class="step-num">2</div><div class="step-body">Em <b>Vincular a um usuário do AD</b>, informe o login de rede da pessoa (ex.: <code>lucas.braun</code>) e clique em <b>🔎 Validar no AD</b> para conferir se o nome bate antes de salvar.</div></div>
+  <div class="step"><div class="step-num">3</div><div class="step-body">Clique em <b>💾 Salvar</b>. A partir daí, esse usuário entra no painel com o login e a senha do Active Directory.</div></div>
+</div>
+<p>Um usuário com <span style="background:#e2f3ef;color:#0f6e64;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">🔐 AD</span> na lista de Usuários já está vinculado. Para desvincular, apague o campo do usuário do AD e defina uma nova senha local nesse mesmo momento (obrigatório, para o usuário não ficar sem nenhuma forma de entrar).</p>
+<div class="warn">
+  <span class="warn-icon">⚠️</span>
+  <span>Se o servidor AD ficar fora do ar, usuários vinculados <b>não conseguem entrar</b> até ele voltar — por segurança, o sistema nunca cai para a senha local nesse caso. Mantenha ao menos um usuário <b>não vinculado</b> ao AD como acesso de emergência.</span>
 </div>
 
 <hr style="margin:40px 0;border:none;border-top:1px solid #dde5f0;">

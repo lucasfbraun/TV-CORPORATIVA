@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends postgresql-clie
     && rm -rf /var/lib/apt/lists/*
 
 # Dependências do servidor
-RUN pip install --no-cache-dir Flask==3.0.3 Werkzeug==3.0.3 waitress==3.0.0 playwright==1.47.0 psycopg2-binary==2.9.9
+RUN pip install --no-cache-dir Flask==3.0.3 Werkzeug==3.0.3 waitress==3.0.0 playwright==1.47.0 psycopg2-binary==2.9.9 ldap3==2.9.1
 
 # Navegador headless (Chromium) para as Integrações com login (ex.: Grafana)
 RUN playwright install --with-deps chromium

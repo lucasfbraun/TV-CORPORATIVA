@@ -14,6 +14,7 @@ from config import EMAIL_RE, log
 from storage import load_users
 from security import require_perm
 from mailer import load_smtp, save_smtp, public_smtp, send_email
+from ldap_auth import load_ldap, save_ldap, public_ldap, ldap_search_user
 
 bp = Blueprint("system", __name__)
 
@@ -69,6 +70,55 @@ def test_smtp():
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": f"Falha ao enviar: {e}"}), 502
     return jsonify({"status": "ok", "sent_to": to})
+
+
+# ── Configuração de LDAP / Active Directory (login integrado) ─────────────────
+@bp.route("/api/ldap", methods=["GET"])
+@require_perm("sistema")
+def get_ldap():
+    return jsonify(public_ldap(load_ldap()))
+
+
+@bp.route("/api/ldap", methods=["PUT"])
+@require_perm("sistema")
+def set_ldap():
+    data = request.get_json(silent=True) or {}
+    cfg = load_ldap()
+    cfg["enabled"] = bool(data.get("enabled"))
+    cfg["server"] = (data.get("server") or "").strip()
+    try:
+        cfg["port"] = int(data.get("port") or 389)
+    except (TypeError, ValueError):
+        cfg["port"] = 389
+    cfg["use_tls"] = bool(data.get("use_tls"))
+    cfg["domain"] = (data.get("domain") or "").strip()
+    cfg["base_dn"] = (data.get("base_dn") or "").strip()
+    cfg["bind_user"] = (data.get("bind_user") or "").strip()
+    # Só troca a senha da conta de serviço se enviada (campo vazio = manter a atual)
+    if data.get("bind_password"):
+        cfg["bind_password"] = data["bind_password"]
+    if data.get("clear_bind_password"):
+        cfg["bind_password"] = ""
+    save_ldap(cfg)
+    return jsonify(public_ldap(cfg))
+
+
+@bp.route("/api/ldap/test", methods=["POST"])
+@require_perm("sistema")
+def test_ldap():
+    """Busca um usuário no AD com a conta de serviço configurada — usado tanto
+    para testar a conexão nas configurações quanto para validar um vínculo
+    antes de salvar na tela de usuários. Não autentica ninguém (não usa senha
+    de usuário nenhuma)."""
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    if not username:
+        return jsonify({"error": "Informe um nome de usuário do AD para testar (ex.: lucas.braun)."}), 400
+    result = ldap_search_user(username)
+    if not result:
+        return jsonify({"error": "Não encontrado no AD (ou a conta de serviço/configuração está incorreta). "
+                                  "Veja os logs do servidor para detalhes."}), 404
+    return jsonify({"status": "ok", **result})
 
 
 # ── Backup e restauração do banco (pg_dump / pg_restore) ──────────────────────

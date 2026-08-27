@@ -14,6 +14,7 @@ from storage import (
 )
 from security import login_required
 from mailer import load_smtp, public_smtp, send_email
+from ldap_auth import ldap_authenticate
 
 bp = Blueprint("auth", __name__)
 
@@ -34,13 +35,26 @@ def api_login():
             if (u.get("email") or "").strip().lower() == ident:
                 username, user = uname, u
                 break
-    if user and check_password_hash(user["password_hash"], password):
+    authenticated = False
+    if user:
+        ad_username = user.get("ad_username")
+        if ad_username:
+            # Usuário vinculado ao AD: a senha é validada 100% pelo Active Directory —
+            # a senha local salva aqui não é usada. Se o AD estiver fora do ar ou a
+            # conta estiver desabilitada, o acesso é negado (nunca cai para a senha
+            # local): é assim que "desligou no AD, perde acesso aqui" funciona.
+            authenticated = ldap_authenticate(ad_username, password) is not None
+        else:
+            authenticated = check_password_hash(user["password_hash"], password)
+
+    if user and authenticated:
         session.permanent = True
         session["user"] = username
         return jsonify({
             "status": "ok",
             "name": user.get("name", username),
-            "must_change": user.get("must_change", False),
+            # Política de senha de usuário vinculado ao AD é do próprio AD, não nossa.
+            "must_change": user.get("must_change", False) and not user.get("ad_username"),
             "profile": user.get("profile", ADMIN_PROFILE_ID),
             "perms": profile_perms(user.get("profile")),
         })
@@ -67,7 +81,7 @@ def api_session():
         "user": username,
         "name": user.get("name", username),
         "email": user.get("email", ""),
-        "must_change": user.get("must_change", False),
+        "must_change": user.get("must_change", False) and not user.get("ad_username"),
         "profile": pid,
         "profile_name": profiles.get(pid, {}).get("name", pid),
         "perms": profile_perms(pid),
@@ -85,6 +99,9 @@ def api_change_password():
     users = load_users()
     username = session["user"]
     user = users.get(username)
+    if user and user.get("ad_username"):
+        return jsonify({"error": "Este usuário está vinculado ao Active Directory. "
+                                  "A troca de senha deve ser feita pelo AD."}), 400
     if not user or not check_password_hash(user["password_hash"], current):
         return jsonify({"error": "Senha atual incorreta"}), 401
     user["password_hash"] = generate_password_hash(new)
@@ -119,6 +136,10 @@ def forgot_password():
     if not target:
         return jsonify(generic)
     user = users[target]
+    # Usuário vinculado ao AD não tem senha local pra redefinir — a resposta
+    # continua genérica (não revela se o usuário existe/está vinculado).
+    if user.get("ad_username"):
+        return jsonify(generic)
     email = (user.get("email") or "").strip()
     if not email:
         return jsonify(generic)
@@ -163,6 +184,9 @@ def reset_password():
     user = users.get(entry["user"])
     if not user:
         return jsonify({"error": "Usuário não encontrado"}), 404
+    if user.get("ad_username"):
+        return jsonify({"error": "Este usuário está vinculado ao Active Directory. "
+                                  "A troca de senha deve ser feita pelo AD."}), 400
     user["password_hash"] = generate_password_hash(new)
     user["must_change"] = False
     save_users(users)

@@ -40,6 +40,7 @@
       <button class="nav-btn" data-area="sistema" onclick="showPanel('profiles',event)">🛡️ Perfis de Acesso</button>
       <button class="nav-btn" data-area="sistema" onclick="showPanel('integrations',event)">🔌 Integrações</button>
       <button class="nav-btn" data-area="sistema" onclick="showPanel('smtp',event)">✉️ E-mail (SMTP)</button>
+      <button class="nav-btn" data-area="sistema" onclick="showPanel('ldap',event)">🔐 LDAP / Active Directory</button>
       <button class="nav-btn" data-area="sistema" onclick="showPanel('backup',event)">💾 Backup</button>
       <button class="nav-btn" data-area="sistema" onclick="showPanel('config',event)">⚙️ Configurações</button>
     </div>
@@ -349,6 +350,71 @@
           <button class="btn btn-outline" onclick="testSmtp()">📨 Enviar teste</button>
           <button class="btn btn-primary" onclick="saveSmtp()">💾 Salvar</button>
         </div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-ldap">
+      <div class="card">
+        <div class="card-title"><span>🔐</span> LDAP / Active Directory</div>
+        <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
+          Vincule usuários deste painel a uma conta do Active Directory (tela de <b>Usuários</b>). Uma vez vinculado,
+          o login passa a usar a senha e a política do AD — se a conta for desativada no AD, o acesso aqui também é
+          bloqueado automaticamente.
+        </p>
+        <div id="ldap-status" style="font-size:13px;margin-bottom:14px;color:var(--dim);">carregando...</div>
+        <div class="toggle-row" style="margin-bottom:16px;">
+          <div class="toggle" id="ldap-enabled-toggle" onclick="this.classList.toggle('on')"></div>
+          <span class="toggle-label">Habilitar login via AD</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:2;">
+            <label class="form-label">Servidor (host ou IP)</label>
+            <input class="form-input" id="ldap-server" placeholder="ex: 10.1.1.205 ou dc01.empresa.local">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label class="form-label">Porta</label>
+            <input class="form-input" id="ldap-port" type="number" value="389">
+          </div>
+        </div>
+        <div class="toggle-row" style="margin-bottom:16px;">
+          <div class="toggle" id="ldap-tls-toggle" onclick="this.classList.toggle('on')"></div>
+          <span class="toggle-label">Usar StartTLS (recomendado — criptografa a senha na rede)</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:1;">
+            <label class="form-label">Domínio (sufixo UPN)</label>
+            <input class="form-input" id="ldap-domain" placeholder="ex: empresa.local">
+            <small style="color:var(--dim);font-size:11px;">Usado para logar como usuario@dominio.</small>
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label class="form-label">Base DN</label>
+            <input class="form-input" id="ldap-base-dn" placeholder="ex: DC=empresa,DC=local">
+            <small style="color:var(--dim);font-size:11px;">Raiz do domínio onde ficam as contas de usuário.</small>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:1;">
+            <label class="form-label">Conta de serviço (usuário@dominio)</label>
+            <input class="form-input" id="ldap-bind-user" placeholder="ex: integracao.ti@empresa.local" autocomplete="off">
+            <small style="color:var(--dim);font-size:11px;">Só precisa de permissão de leitura/busca no AD.</small>
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label class="form-label">Senha da conta de serviço (vazio = manter)</label>
+            <input class="form-input" id="ldap-bind-password" type="password" placeholder="••••••••" autocomplete="new-password">
+          </div>
+        </div>
+        <div class="action-row-end" style="gap:8px;margin-bottom:18px;">
+          <button class="btn btn-primary" onclick="saveLdap()">💾 Salvar</button>
+        </div>
+        <div class="card-title" style="font-size:15px;"><span>🔎</span> Testar conexão</div>
+        <p style="font-size:13px;color:var(--dim);margin-bottom:10px;">
+          Busca um usuário no AD com a conta de serviço (não usa senha de ninguém — só confirma que a conexão e a busca funcionam).
+        </p>
+        <div class="action-row">
+          <input class="form-input" id="ldap-test-username" placeholder="ex: lucas.braun" style="max-width:260px;">
+          <button class="btn btn-outline" onclick="testLdap()">🔎 Buscar no AD</button>
+        </div>
+        <div id="ldap-test-result" style="font-size:13px;margin-top:10px;"></div>
       </div>
     </div>
 
@@ -669,6 +735,17 @@
       <select class="form-input" id="user-profile"></select>
     </div>
     <div class="form-group">
+      <label class="form-label">🔐 Vincular a um usuário do AD (opcional)</label>
+      <div class="action-row" style="gap:8px;">
+        <input class="form-input" id="user-ad-username" placeholder="ex: lucas.braun" style="font-family:monospace;flex:1;" autocomplete="off">
+        <button class="btn btn-outline btn-sm" onclick="validateAdUser()" type="button">🔎 Validar no AD</button>
+      </div>
+      <small id="user-ad-hint" style="color:var(--dim);font-size:11px;display:block;margin-top:4px;">
+        Se preenchido, o login desse usuário passa a usar a senha do Active Directory — a senha local abaixo deixa de ser usada.
+      </small>
+      <div id="user-ad-result" style="font-size:12px;margin-top:6px;"></div>
+    </div>
+    <div class="form-group" id="user-password-group">
       <label class="form-label" id="user-pass-label">Senha</label>
       <input class="form-input" id="user-password" type="password" placeholder="Mínimo 6 caracteres">
     </div>

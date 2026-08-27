@@ -2,6 +2,7 @@
 Rotas de gestão de usuários (logins) e perfis de acesso.
 """
 import re
+import secrets
 
 from flask import Blueprint, request, session, jsonify
 from werkzeug.security import generate_password_hash
@@ -9,6 +10,7 @@ from werkzeug.security import generate_password_hash
 from config import PERM_AREAS, ALL_PERMS, ADMIN_PROFILE_ID, EMAIL_RE
 from storage import load_users, save_users, load_profiles, save_profiles
 from security import require_perm
+from ldap_auth import load_ldap, ldap_search_user
 
 bp = Blueprint("users", __name__)
 
@@ -23,6 +25,7 @@ def _public_user(username, user):
         "email": user.get("email", ""),
         "profile": pid,
         "profile_name": profiles.get(pid, {}).get("name", pid),
+        "ad_username": user.get("ad_username", ""),
     }
 
 
@@ -47,15 +50,26 @@ def create_user():
     email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
     profile = (data.get("profile") or ADMIN_PROFILE_ID).strip()
+    ad_username = (data.get("ad_username") or "").strip()
 
     if not username or not username.replace("_", "").replace(".", "").isalnum():
         return jsonify({"error": "Usuário inválido (use letras, números, '.' ou '_')"}), 400
     if not email or not EMAIL_RE.match(email):
         return jsonify({"error": "Informe um e-mail válido"}), 400
-    if len(password) < 6:
-        return jsonify({"error": "A senha deve ter ao menos 6 caracteres"}), 400
     if profile not in load_profiles():
         return jsonify({"error": "Perfil de acesso inválido"}), 400
+
+    if ad_username:
+        if not load_ldap().get("enabled"):
+            return jsonify({"error": "LDAP/AD não está habilitado nas configurações do sistema."}), 400
+        if not ldap_search_user(ad_username):
+            return jsonify({"error": f"Usuário '{ad_username}' não encontrado no Active Directory."}), 400
+        # Vinculado ao AD: a senha local nunca é usada para login — gera uma
+        # aleatória só para preencher o campo (obrigatório no modelo de dados).
+        if not password:
+            password = secrets.token_urlsafe(24)
+    elif len(password) < 6:
+        return jsonify({"error": "A senha deve ter ao menos 6 caracteres"}), 400
 
     users = load_users()
     if username in users:
@@ -67,6 +81,7 @@ def create_user():
         "email": email,
         "profile": profile,
         "must_change": False,
+        "ad_username": ad_username,
     }
     save_users(users)
     return jsonify(_public_user(username, users[username])), 201
@@ -93,6 +108,28 @@ def update_user(username):
         if data["profile"] not in load_profiles():
             return jsonify({"error": "Perfil de acesso inválido"}), 400
         user["profile"] = data["profile"]
+
+    if "ad_username" in data:
+        new_ad_username = (data.get("ad_username") or "").strip()
+        current_ad_username = user.get("ad_username") or ""
+        if new_ad_username != current_ad_username:
+            # Só bate no AD quando o vínculo de fato muda — uma edição comum (ex.: só
+            # trocar o perfil) não deve depender do AD estar de pé pra ser salva.
+            if new_ad_username:
+                if not load_ldap().get("enabled"):
+                    return jsonify({"error": "LDAP/AD não está habilitado nas configurações do sistema."}), 400
+                if not ldap_search_user(new_ad_username):
+                    return jsonify({"error": f"Usuário '{new_ad_username}' não encontrado no Active Directory."}), 400
+                user["ad_username"] = new_ad_username
+                user["must_change"] = False
+            elif current_ad_username and not data.get("password"):
+                # Desvinculando do AD: precisa de uma senha local nova neste mesmo pedido,
+                # senão o usuário fica sem nenhuma forma de entrar (a senha local antiga
+                # pode nunca ter sido definida de verdade, já que não era usada).
+                return jsonify({"error": "Ao desvincular do AD, defina uma nova senha local."}), 400
+            else:
+                user["ad_username"] = ""
+
     new_password = data.get("password")
     if new_password:
         if len(new_password) < 6:

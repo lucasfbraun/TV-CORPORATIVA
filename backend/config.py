@@ -59,7 +59,7 @@ PERM_AREAS = {
     "grade":      "Montar grade / TVs",
     "biblioteca": "Biblioteca e mídias",
     "rodape":     "Barra inferior (rodapé)",
-    "sistema":    "Usuários, perfis, SMTP e integrações",
+    "sistema":    "Usuários, perfis, SMTP, LDAP/AD e integrações",
 }
 ALL_PERMS = list(PERM_AREAS.keys())
 ADMIN_PROFILE_ID = "administrador"

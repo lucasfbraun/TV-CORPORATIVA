@@ -157,6 +157,7 @@ const PANEL_TITLES = {
   biblioteca:'Biblioteca de Arquivos', rodapes:'Barra inferior',
   users:'Usuários', profiles:'Perfis de Acesso',
   integrations:'Integrações', smtp:'Servidor de E-mail (SMTP)',
+  ldap:'LDAP / Active Directory',
   backup:'Backup do Banco', config:'Configurações'
 };
 
@@ -165,7 +166,7 @@ let MY_PERMS = null;          // null = ainda não carregado (não restringe)
 const PANEL_AREA = {
   tvs:'grade', timeline:'grade',
   biblioteca:'biblioteca', rodapes:'rodape',
-  users:'sistema', profiles:'sistema', integrations:'sistema', smtp:'sistema',
+  users:'sistema', profiles:'sistema', integrations:'sistema', smtp:'sistema', ldap:'sistema',
   backup:'sistema', config:'sistema',
 };
 
@@ -190,6 +191,7 @@ function showPanel(id, ev) {
   document.getElementById('topbar-title').textContent = PANEL_TITLES[id] || id;
   if (id === 'profiles') loadProfiles();
   if (id === 'smtp') loadSmtp();
+  if (id === 'ldap') loadLdap();
   if (id === 'users') loadUsers();
   if (id === 'integrations') loadIntegrations();
   // Show grade pill for content panels
@@ -2036,7 +2038,7 @@ async function saveOwnPassword() {
 let _usersCache = [];
 let _profilesCache = [];
 let _permAreas = { grade:'Montar grade / TVs', biblioteca:'Biblioteca e mídias',
-                   rodape:'Barra inferior (rodapé)', sistema:'Usuários, perfis, SMTP e integrações' };
+                   rodape:'Barra inferior (rodapé)', sistema:'Usuários, perfis, SMTP, LDAP/AD e integrações' };
 
 async function loadUsers() {
   const tb = document.getElementById('user-tbody');
@@ -2057,7 +2059,7 @@ async function loadUsers() {
     }
     tb.innerHTML = users.map(u => `
       <tr>
-        <td style="font-family:monospace;">${u.username}</td>
+        <td style="font-family:monospace;">${u.username}${u.ad_username ? ' <span class="type-badge" style="background:#e2f3ef;color:#0f6e64;" title="Login via Active Directory (' + u.ad_username + ')">🔐 AD</span>' : ''}</td>
         <td>${u.name || ''}</td>
         <td>${u.email || '<span style="color:var(--red);">— sem e-mail —</span>'}</td>
         <td>${u.profile_name || u.profile || ''}</td>
@@ -2089,11 +2091,28 @@ async function openUserModal(username = '') {
   document.getElementById('user-name').value = u.name || '';
   document.getElementById('user-email').value = u.email || '';
   document.getElementById('user-password').value = '';
-  document.getElementById('user-pass-label').textContent = isEdit ? 'Nova senha (vazio = manter)' : 'Senha';
+  document.getElementById('user-pass-label').textContent = isEdit
+    ? (u.ad_username ? 'Nova senha local (só usada se desvincular do AD)' : 'Nova senha (vazio = manter)')
+    : 'Senha';
   document.getElementById('user-username-hint').style.display = isEdit ? 'none' : 'block';
+  document.getElementById('user-ad-username').value = u.ad_username || '';
+  document.getElementById('user-ad-result').innerHTML = '';
   if (!_profilesCache.length) await loadProfilesCache();
   _fillProfileSelect(u.profile || 'administrador');
   openModal('modal-user');
+}
+
+async function validateAdUser() {
+  const username = document.getElementById('user-ad-username').value.trim();
+  const box = document.getElementById('user-ad-result');
+  if (!username) { box.innerHTML = ''; return; }
+  box.textContent = 'Buscando no AD...'; box.style.color = 'var(--dim)';
+  try {
+    const { ok, data } = await _ldapSearch(username);
+    if (!ok) { box.textContent = '❌ ' + (data.error || 'Não encontrado no AD'); box.style.color = 'var(--red)'; return; }
+    box.innerHTML = `✅ <b>${data.name}</b> (${data.email || 'sem e-mail'}) — ${data.enabled ? 'conta habilitada' : '<span style="color:var(--red)">conta DESABILITADA no AD</span>'}`;
+    box.style.color = '';
+  } catch (e) { box.textContent = '❌ Sem conexão com o servidor.'; box.style.color = 'var(--red)'; }
 }
 
 async function saveUser() {
@@ -2104,21 +2123,22 @@ async function saveUser() {
   const email = document.getElementById('user-email').value.trim().toLowerCase();
   const profile = document.getElementById('user-profile').value;
   const password = document.getElementById('user-password').value;
+  const adUsername = document.getElementById('user-ad-username').value.trim();
   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
   if (!isEdit && !emailOk) { toast('❌ Informe um e-mail válido.'); return; }   // e-mail obrigatório só na criação
   if (isEdit && email && !emailOk) { toast('❌ E-mail inválido.'); return; }     // ao editar, valida só se preenchido
-  if (!isEdit && password.length < 6) { toast('❌ A senha deve ter ao menos 6 caracteres.'); return; }
+  if (!isEdit && !adUsername && password.length < 6) { toast('❌ A senha deve ter ao menos 6 caracteres.'); return; }
   try {
     let r;
     if (isEdit) {
       r = await fetch('/api/users/' + encodeURIComponent(editUser), {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, profile, password: password || undefined })
+        body: JSON.stringify({ name, email, profile, password: password || undefined, ad_username: adUsername })
       });
     } else {
       r = await fetch('/api/users', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, name, email, profile, password })
+        body: JSON.stringify({ username, name, email, profile, password, ad_username: adUsername })
       });
     }
     const data = await r.json();
@@ -2288,6 +2308,78 @@ async function testSmtp() {
     if (!r.ok) { toast('❌ ' + (data.error || 'Falha no teste')); return; }
     toast('✅ E-mail de teste enviado para ' + (data.sent_to || ''));
   } catch (e) { toast('❌ Sem conexão com o servidor.'); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// LDAP / ACTIVE DIRECTORY
+// ═══════════════════════════════════════════════════════════
+async function loadLdap() {
+  const st = document.getElementById('ldap-status');
+  try {
+    const r = await fetch('/api/ldap');
+    if (r.status === 403) { if (st) st.textContent = 'Sem permissão.'; return; }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const c = await r.json();
+    document.getElementById('ldap-enabled-toggle').classList.toggle('on', !!c.enabled);
+    document.getElementById('ldap-server').value = c.server || '';
+    document.getElementById('ldap-port').value = c.port || 389;
+    document.getElementById('ldap-tls-toggle').classList.toggle('on', !!c.use_tls);
+    document.getElementById('ldap-domain').value = c.domain || '';
+    document.getElementById('ldap-base-dn').value = c.base_dn || '';
+    document.getElementById('ldap-bind-user').value = c.bind_user || '';
+    document.getElementById('ldap-bind-password').value = '';
+    if (st) {
+      st.innerHTML = c.configured
+        ? '🟢 Configurado' + (c.enabled ? ' · login via AD ativo' : ' · desabilitado') + (c.has_bind_password ? '' : ' · ⚠️ sem senha da conta de serviço')
+        : '⚪ Ainda não configurado';
+      st.style.color = c.configured && c.enabled ? 'var(--green)' : 'var(--dim)';
+    }
+  } catch (e) { if (st) { st.textContent = '⚠️ Erro ao carregar.'; st.style.color = 'var(--red)'; } }
+}
+
+async function saveLdap() {
+  const body = {
+    enabled: document.getElementById('ldap-enabled-toggle').classList.contains('on'),
+    server: document.getElementById('ldap-server').value.trim(),
+    port: parseInt(document.getElementById('ldap-port').value) || 389,
+    use_tls: document.getElementById('ldap-tls-toggle').classList.contains('on'),
+    domain: document.getElementById('ldap-domain').value.trim(),
+    base_dn: document.getElementById('ldap-base-dn').value.trim(),
+    bind_user: document.getElementById('ldap-bind-user').value.trim(),
+  };
+  const pass = document.getElementById('ldap-bind-password').value;
+  if (pass) body.bind_password = pass;
+  try {
+    const r = await fetch('/api/ldap', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (!r.ok) { toast('❌ ' + (data.error || 'Erro ao salvar')); return; }
+    toast('✅ LDAP salvo!');
+    loadLdap();
+  } catch (e) { toast('❌ Sem conexão com o servidor.'); }
+}
+
+async function _ldapSearch(username) {
+  const r = await fetch('/api/ldap/test', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username })
+  });
+  const data = await r.json();
+  return { ok: r.ok, data };
+}
+
+async function testLdap() {
+  const username = document.getElementById('ldap-test-username').value.trim();
+  const box = document.getElementById('ldap-test-result');
+  if (!username) { toast('⚠️ Informe um usuário do AD para testar.'); return; }
+  box.textContent = 'Buscando...'; box.style.color = 'var(--dim)';
+  try {
+    const { ok, data } = await _ldapSearch(username);
+    if (!ok) { box.textContent = '❌ ' + (data.error || 'Não encontrado'); box.style.color = 'var(--red)'; return; }
+    box.innerHTML = `✅ Encontrado: <b>${data.name}</b> (${data.email || 'sem e-mail'}) — conta ${data.enabled ? '<span style="color:var(--green)">habilitada</span>' : '<span style="color:var(--red)">DESABILITADA no AD</span>'}`;
+    box.style.color = '';
+  } catch (e) { box.textContent = '❌ Sem conexão com o servidor.'; box.style.color = 'var(--red)'; }
 }
 
 // ═══════════════════════════════════════════════════════════

@@ -9,6 +9,9 @@ playwright==1.47.0
 # Banco de dados PostgreSQL
 psycopg2-binary==2.9.9
 
+# Autenticação via Active Directory / LDAP (login integrado)
+ldap3==2.9.1
+
 # Integração de KPIs (opcional - apenas para integrations/integracao_kpi.py)
 pandas==2.2.2
 openpyxl==3.1.5
