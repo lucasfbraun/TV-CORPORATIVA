@@ -313,6 +313,29 @@ echo "Exec=bash /home/pi/no-sleep.sh" >> ~/.config/autostart/tv-kiosk.desktop</c
     <span class="callout-icon">💡</span>
     <div><b>Smart TV Samsung/LG:</b> Use o navegador nativo da TV e configure-o como a "Home Screen" nas configurações de mídia da TV. Consulte o manual da sua TV para detalhes.</div>
   </div>
+
+  <h3>4.3 Evitar que a TV LG entre em standby (grade com Página URL / Grafana)</h3>
+  <p>Quando a grade tem pouco ou nenhum conteúdo em vídeo (ex.: só uma <b>Página URL</b> apontando pra um dashboard Grafana), a própria TV LG (webOS) pode entrar em economia de energia sozinha, mesmo com a página respondendo normalmente. Isso acontece porque o <b>"Auto Power Off"/"Sleep Timer"</b> da TV mede inatividade do controle remoto, não atividade da página web — o navegador não tem como avisar a TV que "ainda tem algo acontecendo".</p>
+
+  <p>O <code>display.html</code> já tenta mitigar isso sozinho (Screen Wake Lock API + um vídeo mudo em loop tocando fora da tela, que evita que a TV classifique a tela como "parada"), mas em muitos modelos LG isso não é suficiente porque o timer de desligamento é do firmware, não do navegador. Por isso, desative também as opções abaixo direto na TV:</p>
+
+  <ol class="steps">
+    <li><div class="step-num">1</div><div class="step-text">No controle remoto, abra <b>Configurações (⚙) → Todas as Configurações → Geral</b>.</div></li>
+    <li><div class="step-num">2</div><div class="step-text">Entre em <b>Modo Eco / Energia</b> e desative <b>"Desligamento Automático" (Auto Power Off)</b>.</div></li>
+    <li><div class="step-num">3</div><div class="step-text">Ainda em Modo Eco, desative <b>"Sinal Sem Sinal" / "Desligar Sem Sinal"</b> e qualquer <b>"Temporizador de Desligamento" (Sleep Timer)</b> agendado.</div></li>
+    <li><div class="step-num">4</div><div class="step-text">Se a TV tiver <b>"Quick Start+"</b>, mantenha desligado (ele não evita o standby por inatividade, só acelera o ligar — mas consome energia em standby, avalie conforme a política de TI).</div></li>
+    <li><div class="step-num">5</div><div class="step-text">Procure em <b>Suporte → Configurações Adicionais</b> (ou no menu de instalação inicial) por um modo <b>"Sinalização" / "Signage" / "Modo Hotel/Comercial"</b>. Modelos comerciais da LG (Pro:Centric, série UH5J/UL3J e afins) têm esse modo justamente para ficarem ligados 24/7 sem standby — ative-o se disponível.</div></li>
+  </ol>
+
+  <div class="callout warning">
+    <span class="callout-icon">⚠️</span>
+    <div><b>Nomes dos menus variam por modelo/versão do webOS.</b> Em algumas TVs os caminhos são <code>Geral → Modo Eco → Sinal sem sinal</code> ou <code>Suporte → Diagnóstico automático → Configurações de energia</code>. Se não achar a opção exata, procure por qualquer item com "Auto", "Eco", "Sleep" ou "Power Off" nos submenus de Geral e Suporte.</div>
+  </div>
+
+  <div class="callout success">
+    <span class="callout-icon">✅</span>
+    <div><b>Solução definitiva:</b> desativar essas opções na própria TV é o que realmente garante que ela não entre em standby — as mitigações do <code>display.html</code> (Wake Lock + vídeo mudo) ajudam mas não têm controle sobre o firmware de energia da TV. Para telas onde isso for crítico e a TV insistir em dormir mesmo com tudo desativado, prefira um player externo (Mini-PC ou Raspberry Pi, seções 2 e 3 deste guia) em vez do navegador nativo da TV.</div>
+  </div>
 </div>
 
 <!-- ── SEÇÃO 5: REDE ──────────────────────────────────────────────────── -->
