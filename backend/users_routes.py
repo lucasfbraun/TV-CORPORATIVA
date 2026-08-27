@@ -10,7 +10,7 @@ from werkzeug.security import generate_password_hash
 from config import PERM_AREAS, ALL_PERMS, ADMIN_PROFILE_ID, EMAIL_RE
 from storage import load_users, save_users, load_profiles, save_profiles
 from security import require_perm
-from ldap_auth import load_ldap, ldap_search_user
+from ldap_auth import ldap_search_user
 
 bp = Blueprint("users", __name__)
 
@@ -60,10 +60,11 @@ def create_user():
         return jsonify({"error": "Perfil de acesso inválido"}), 400
 
     if ad_username:
-        if not load_ldap().get("enabled"):
-            return jsonify({"error": "LDAP/AD não está habilitado nas configurações do sistema."}), 400
+        # Vincular não exige o interruptor "Habilitar login via AD" ligado — dá pra
+        # preparar o vínculo antes de ativar o login via AD pra todo mundo.
         if not ldap_search_user(ad_username):
-            return jsonify({"error": f"Usuário '{ad_username}' não encontrado no Active Directory."}), 400
+            return jsonify({"error": f"Usuário '{ad_username}' não encontrado no Active Directory "
+                                      "(confira também se o servidor/conta de serviço estão configurados corretamente)."}), 400
         # Vinculado ao AD: a senha local nunca é usada para login — gera uma
         # aleatória só para preencher o campo (obrigatório no modelo de dados).
         if not password:
@@ -116,10 +117,9 @@ def update_user(username):
             # Só bate no AD quando o vínculo de fato muda — uma edição comum (ex.: só
             # trocar o perfil) não deve depender do AD estar de pé pra ser salva.
             if new_ad_username:
-                if not load_ldap().get("enabled"):
-                    return jsonify({"error": "LDAP/AD não está habilitado nas configurações do sistema."}), 400
                 if not ldap_search_user(new_ad_username):
-                    return jsonify({"error": f"Usuário '{new_ad_username}' não encontrado no Active Directory."}), 400
+                    return jsonify({"error": f"Usuário '{new_ad_username}' não encontrado no Active Directory "
+                                              "(confira também se o servidor/conta de serviço estão configurados corretamente)."}), 400
                 user["ad_username"] = new_ad_username
                 user["must_change"] = False
             elif current_ad_username and not data.get("password"):

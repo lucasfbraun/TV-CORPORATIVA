@@ -149,10 +149,16 @@ def ldap_authenticate(ad_username, password, cfg=None):
 def ldap_search_user(username, cfg=None):
     """Busca um usuário no AD com a conta de serviço (sem senha do usuário).
     Não autentica ninguém — só valida que o usuário existe, para o admin
-    conferir antes de vincular. Retorna {"sam","name","email","enabled"} ou
-    None se não encontrar (ou a conta de serviço/config estiver errada)."""
+    conferir antes de vincular ou testar a conexão. Retorna
+    {"sam","name","email","enabled"} ou None se não encontrar (ou a conta de
+    serviço/config estiver errada).
+
+    Propositalmente NÃO depende de cfg["enabled"]: é assim que dá pra testar a
+    conexão/buscar um usuário ANTES de ligar o interruptor "Habilitar login via
+    AD" — o interruptor só controla se o LOGIN de verdade (ldap_authenticate)
+    passa a usar o AD, não a busca de validação."""
     cfg = cfg or load_ldap()
-    if not cfg.get("enabled") or not cfg.get("bind_user") or not username:
+    if not cfg.get("bind_user") or not username:
         return None
     if not cfg.get("server") or not cfg.get("base_dn"):
         return None
