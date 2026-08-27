@@ -437,8 +437,6 @@ function goTo(idx) {
     if (prevSlide?.type === 'gallery') stopGallery(prevSlide.id);
     if (prevSlide?.type === 'media' && youtubeId(prevSlide.url)) destroyYTPlayer();
     all[current].classList.remove('active');
-    all[current].classList.add('exit');
-    setTimeout(() => all[current]?.classList.remove('exit'), 800);
   }
 
   current = (idx + slides.length) % slides.length;

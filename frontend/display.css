@@ -12,7 +12,7 @@
     --white:       #ffffff;
     --gray-light:  #e8eef5;
     --text-dim:    #a0b4c8;
-    --slide-dur:   0.7s;
+    --slide-dur:   0.9s;
   }
 
   html, body {
@@ -48,17 +48,18 @@
   .slide {
     position: absolute; inset: 0;
     opacity: 0;
-    transform: translateX(60px) scale(0.98);
-    transition: opacity var(--slide-dur) ease, transform var(--slide-dur) ease;
+    transition: opacity var(--slide-dur) ease-in-out;
     pointer-events: none;
     display: flex; flex-direction: column;
   }
   .slide.active {
-    opacity: 1; transform: translateX(0) scale(1);
+    opacity: 1;
+    z-index: 1; /* garante que o slide entrando sempre pinte por cima do que está saindo, mesmo no wrap-around (último → primeiro) */
+    will-change: opacity;
     pointer-events: all;
   }
-  .slide.exit {
-    opacity: 0; transform: translateX(-60px) scale(0.98);
+  @media (prefers-reduced-motion: reduce) {
+    .slide { transition: none; }
   }
 
   /* ── BARRA INFERIOR CONFIGURÁVEL ─────────────────────── */
