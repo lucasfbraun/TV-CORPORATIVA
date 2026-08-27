@@ -105,6 +105,24 @@ function getActiveGrade() {
 function activeSlides() { return getActiveGrade()?.slides || []; }
 function setActiveSlides(slides) { getActiveGrade().slides = slides; }
 
+// ── Auto-exclusão de mídia agendada vencida (schedule.mode 'range' com end < hoje) ──
+function _localYMD(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function pruneExpiredSchedules() {
+  const today = _localYMD(new Date());
+  const removed = [];
+  (DATA.grades || []).forEach(g => {
+    g.slides = (g.slides || []).filter(s => {
+      const sc = s.schedule;
+      const expired = !!(sc && sc.mode === 'range' && sc.end && today > sc.end);
+      if (expired) removed.push(s.title || s.caption || s.type);
+      return !expired;
+    });
+  });
+  return removed;
+}
+
 function switchActiveGrade(gradeId) {
   activeGradeId = gradeId;
   renderAll();
@@ -2395,8 +2413,21 @@ async function boot() {
   const remote = await loadFromServer();
   if (remote) DATA = remote;                 // servidor é a fonte da verdade
   activeGradeId = DATA.grades[0]?.id;
+  const removedOnBoot = pruneExpiredSchedules();
+  if (removedOnBoot.length) save(DATA);
   renderAll();
   updateGradePill();
+  if (removedOnBoot.length) toast(`🗑️ ${removedOnBoot.length} mídia(s) agendada(s) vencida(s) removida(s) automaticamente`);
+
+  // Reavalia periodicamente: se o painel ficar aberto e uma mídia vencer nesse meio-tempo, remove sozinha.
+  setInterval(() => {
+    const removed = pruneExpiredSchedules();
+    if (removed.length) {
+      save(DATA);
+      renderAll();
+      toast(`🗑️ ${removed.length} mídia(s) agendada(s) vencida(s) removida(s) automaticamente`);
+    }
+  }, 5 * 60 * 1000);
 }
 
 // Carrega biblioteca quando o painel for exibido
