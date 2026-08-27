@@ -56,7 +56,7 @@ if ON_SERVERLESS:
 # ── Perfis de acesso (permissões por área) ────────────────────────────────────
 # Áreas que um perfil pode liberar. 'sistema' = gerir usuários, perfis, SMTP e integrações.
 PERM_AREAS = {
-    "grade":      "Montar grade / TVs / grades",
+    "grade":      "Montar grade / TVs",
     "biblioteca": "Biblioteca e mídias",
     "rodape":     "Barra inferior (rodapé)",
     "sistema":    "Usuários, perfis, SMTP e integrações",

@@ -27,7 +27,6 @@
     </div>
     <div class="nav-group" data-area="grade">
       <div class="nav-label">Grade de Programação</div>
-      <button class="nav-btn" data-area="grade" onclick="showPanel('grades',event)">📋 Grades</button>
       <button class="nav-btn" data-area="grade" onclick="showPanel('timeline',event)">🎬 Montar Grade</button>
       <button class="nav-btn" data-area="biblioteca" onclick="showPanel('biblioteca',event)">📁 Biblioteca</button>
     </div>
@@ -101,23 +100,6 @@
         <table class="tbl">
           <thead><tr><th>Nome</th><th>Slug</th><th>Grade</th><th>Rodapé</th><th>Status</th><th>Link</th><th>Ações</th></tr></thead>
           <tbody id="tv-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- ── GRADES ────────────────────────────────────── -->
-    <div class="panel" id="panel-grades">
-      <div class="card">
-        <div class="card-title"><span>📋</span> Grades de Programação</div>
-        <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
-          Uma grade é uma lista de slides exibidos em sequência. Você pode criar múltiplas grades e vincular cada uma a uma ou mais TVs.
-        </p>
-        <div class="action-row" style="margin-bottom:14px;">
-          <button class="btn btn-primary" onclick="openGradeModal()">➕ Nova Grade</button>
-        </div>
-        <table class="tbl">
-          <thead><tr><th>Nome da Grade</th><th>Slides</th><th>Duração padrão</th><th>Ações</th></tr></thead>
-          <tbody id="grade-tbody"></tbody>
         </table>
       </div>
     </div>
@@ -208,6 +190,9 @@
         📋 Editando grade: <b id="ctx-grade-name-tl">–</b>
         &nbsp;|&nbsp; Trocar:
         <select onchange="switchActiveGrade(this.value)"></select>
+        <button class="btn btn-outline btn-sm" onclick="openGradeModal()" title="Criar uma nova grade">➕ Nova Grade</button>
+        <button class="btn btn-outline btn-sm" onclick="openCurrentGradeModal()" title="Renomear esta grade / alterar duração padrão">✏️ Editar Grade</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCurrentGrade()" title="Excluir esta grade">🗑️ Excluir Grade</button>
       </div>
       <div class="card">
         <div class="card-title"><span>🎬</span> Montar Grade de Programação</div>

@@ -151,7 +151,7 @@ function updateGradePill() {
 // ═══════════════════════════════════════════════════════════
 const CONTENT_PANELS = ['announcements','calendar','media','gallery','timeline'];
 const PANEL_TITLES = {
-  dashboard:'Dashboard', tvs:'TVs', grades:'Grades de Programação',
+  dashboard:'Dashboard', tvs:'TVs',
   announcements:'Avisos', calendar:'Agenda',
   media:'Mídia', gallery:'Galeria', timeline:'Grade de Programação',
   biblioteca:'Biblioteca de Arquivos', rodapes:'Barra inferior',
@@ -163,7 +163,7 @@ const PANEL_TITLES = {
 // Permissões do usuário logado (preenchido em loadCurrentUser)
 let MY_PERMS = null;          // null = ainda não carregado (não restringe)
 const PANEL_AREA = {
-  tvs:'grade', grades:'grade', timeline:'grade',
+  tvs:'grade', timeline:'grade',
   biblioteca:'biblioteca', rodapes:'rodape',
   users:'sistema', profiles:'sistema', integrations:'sistema', smtp:'sistema',
   backup:'sistema', config:'sistema',
@@ -205,7 +205,6 @@ function showPanel(id, ev) {
 function renderAll() {
   renderDashboard();
   renderTvs();
-  renderGrades();
   renderAnnouncements();
   renderCalendar();
   renderMedia();
@@ -292,30 +291,6 @@ function renderTvs() {
       </td>
     </tr>`;
   }).join('') || '<tr><td colspan="7" style="color:var(--dim);text-align:center;padding:20px">Nenhuma TV cadastrada. Clique em "+ Nova TV" para começar.</td></tr>';
-}
-
-// ── Grades ────────────────────────────────────────────────
-function renderGrades() {
-  const tbody = document.getElementById('grade-tbody');
-  if (!tbody) return;
-  tbody.innerHTML = DATA.grades.map(g => {
-    const active = (g.slides||[]).filter(s => s.active).length;
-    const total  = (g.slides||[]).length;
-    const tvCount = DATA.tvs.filter(t => t.grade_id === g.id).length;
-    return `<tr>
-      <td>
-        <b>${g.name}</b>
-        ${tvCount > 0 ? `<span style="margin-left:8px;font-size:11px;color:var(--blue-light);">${tvCount} TV(s)</span>` : ''}
-      </td>
-      <td>${active} ativos / ${total} total</td>
-      <td>${g.slide_duration}s</td>
-      <td class="action-row">
-        <button class="btn btn-primary btn-sm" onclick="editGradeContent('${g.id}')">🎞️ Editar Conteúdo</button>
-        <button class="btn btn-outline btn-sm" onclick="openGradeModal('${g.id}')">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteGrade('${g.id}')">🗑️</button>
-      </td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="4" style="color:var(--dim);text-align:center;padding:20px">Nenhuma grade cadastrada</td></tr>';
 }
 
 // ── Rodapés ───────────────────────────────────────────────
@@ -600,8 +575,16 @@ function saveGrade() {
   } else {
     const newId = `grade-${String(nextEntityId(DATA.grades)).padStart(3,'0')}`;
     DATA.grades.push({ id: newId, name, slide_duration: dur, slides: [] });
+    activeGradeId = newId; // passa a editar a grade recém-criada
   }
-  save(DATA); renderAll(); closeModal('modal-grade'); toast('Grade salva!');
+  save(DATA); renderAll(); updateGradePill(); closeModal('modal-grade'); toast('Grade salva!');
+}
+
+// Abre o modal de edição já preenchido com a grade que está sendo montada no momento.
+function openCurrentGradeModal() {
+  const g = getActiveGrade();
+  if (!g) { toast('⚠️ Nenhuma grade selecionada.'); return; }
+  openGradeModal(g.id);
 }
 
 function deleteGrade(id) {
@@ -613,16 +596,23 @@ function deleteGrade(id) {
   if (!confirm('Remover esta grade e todos os seus slides?')) return;
   DATA.grades = DATA.grades.filter(g => g.id !== id);
   if (activeGradeId === id) activeGradeId = DATA.grades[0]?.id;
-  save(DATA); renderAll(); toast('Grade removida');
+  save(DATA); renderAll(); updateGradePill(); toast('Grade removida');
+}
+
+// Exclui a grade que está sendo montada no momento (botão dentro de "Montar Grade").
+function deleteCurrentGrade() {
+  const g = getActiveGrade();
+  if (!g) { toast('⚠️ Nenhuma grade selecionada.'); return; }
+  deleteGrade(g.id);
 }
 
 function editGradeContent(gradeId) {
   activeGradeId = gradeId;
-  showPanel('announcements', null);
+  showPanel('timeline', null);
   // Activate the nav button
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => {
-    if (b.textContent.includes('Avisos')) b.classList.add('active');
+    if (b.textContent.includes('Montar Grade')) b.classList.add('active');
   });
 }
 
@@ -2113,7 +2103,7 @@ async function saveOwnPassword() {
 // ═══════════════════════════════════════════════════════════
 let _usersCache = [];
 let _profilesCache = [];
-let _permAreas = { grade:'Montar grade / TVs / grades', biblioteca:'Biblioteca e mídias',
+let _permAreas = { grade:'Montar grade / TVs', biblioteca:'Biblioteca e mídias',
                    rodape:'Barra inferior (rodapé)', sistema:'Usuários, perfis, SMTP e integrações' };
 
 async function loadUsers() {
