@@ -467,12 +467,21 @@ function goTo(idx) {
   const pbw = document.getElementById('progress-bar-wrap');
   if (pbw) pbw.style.display = (slides[current]?.type === 'integration') ? 'none' : '';
 
-  // Mídia visual preenche a tela inteira (a barra fica por cima); PDF e demais ficam acima da barra
+  // Mídia em modo "preencher a tela" (fit=cover) vai atrás da barra inferior — a barra fica
+  // por cima, o que é aceitável porque essa mídia já aceita cortar as bordas mesmo.
+  // Mídia em "mostrar inteira" (fit=contain, o padrão) NÃO fica fullbleed: assim a imagem
+  // inteira cabe no espaço acima da barra e nada fica escondido atrás dela.
   const curT = slides[current];
   let fullbleed = false;
   if (curT) {
     if (curT.type === 'gallery') fullbleed = true;
-    else if (curT.type === 'media') fullbleed = !/\.pdf(\?|#|$)/i.test(curT.url || '');
+    else if (curT.type === 'media') {
+      const isPdf = /\.pdf(\?|#|$)/i.test(curT.url || '');
+      // YouTube sempre preenche a tela toda: o embed não tem opção "mostrar inteira" (o CSS
+      // dele já é fixo em 100vw/100vh), então precisa do fullbleed independente do fit.
+      const isYouTube = !!youtubeId(curT.url);
+      fullbleed = !isPdf && (isYouTube || curT.fit === 'cover');
+    }
   }
   document.getElementById('slides-container').classList.toggle('fullbleed', fullbleed);
 
