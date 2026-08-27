@@ -587,6 +587,28 @@ function openCurrentGradeModal() {
   openGradeModal(g.id);
 }
 
+// Duplica a grade atual (com todos os slides) sob um novo nome informado pelo usuário.
+function duplicateCurrentGrade() {
+  const src = getActiveGrade();
+  if (!src) { toast('⚠️ Nenhuma grade selecionada.'); return; }
+  const name = prompt('Nome da nova grade (cópia de "' + src.name + '"):', src.name + ' (cópia)');
+  if (name === null) return; // cancelado
+  const trimmed = name.trim();
+  if (!trimmed) { toast('⚠️ Nome da grade é obrigatório.'); return; }
+
+  let nextId = nextSlideId();
+  const slides = (src.slides || []).map(s => {
+    const clone = JSON.parse(JSON.stringify(s));
+    clone.id = nextId++;
+    return clone;
+  });
+  const newId = `grade-${String(nextEntityId(DATA.grades)).padStart(3,'0')}`;
+  DATA.grades.push({ id: newId, name: trimmed, slide_duration: src.slide_duration, slides });
+  activeGradeId = newId; // passa a editar a cópia recém-criada
+
+  save(DATA); renderAll(); updateGradePill(); toast('✅ Grade duplicada!');
+}
+
 function deleteGrade(id) {
   if (DATA.grades.length === 1) { toast('⚠️ Você precisa de ao menos uma grade.'); return; }
   const tvsUsing = DATA.tvs.filter(t => t.grade_id === id);
