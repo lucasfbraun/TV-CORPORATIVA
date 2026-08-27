@@ -190,14 +190,17 @@ def move_file():
 @bp.route("/uploads/<path:filename>")
 def serve_upload(filename):
     safe = safe_rel_path(filename)
+    # ?download=1 força o download (Content-Disposition: attachment) em vez de abrir
+    # o arquivo inline no navegador — usado pelo botão "Baixar" da Biblioteca.
+    as_attachment = request.args.get("download") in ("1", "true", "yes")
     # Capturas do Grafana continuam em disco (transitórias, regeneradas a cada poucos segundos)
     if filename.startswith("captures/") or safe.startswith("captures/"):
-        return send_from_directory(UPLOADS_DIR, safe)
+        return send_from_directory(UPLOADS_DIR, safe, as_attachment=as_attachment)
     rec = db.media_get(safe)
     if rec is None:
         # compatibilidade: arquivo ainda em disco (ex.: antes da migração)
         if os.path.isfile(os.path.join(UPLOADS_DIR, safe)):
-            return send_from_directory(UPLOADS_DIR, safe)
+            return send_from_directory(UPLOADS_DIR, safe, as_attachment=as_attachment)
         abort(404)
     data, mime = rec
     # Usa send_file (em vez de um Response simples) para responder corretamente a
@@ -213,5 +216,6 @@ def serve_upload(filename):
         conditional=True,
         etag=False,
         max_age=300,
+        as_attachment=as_attachment,
         download_name=os.path.basename(safe) or "arquivo",
     )

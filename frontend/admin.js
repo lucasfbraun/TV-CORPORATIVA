@@ -1960,6 +1960,7 @@ async function loadLibrary(path) {
         ${f.type==='video' ? `<span class="lib-icon">🎬</span>` : f.type==='pdf' ? `<span class="lib-icon">📄</span>` : `<img src="${f.url}" alt="" onerror="this.style.display='none'">`}
         <div class="lib-name">${f.filename.slice(0,16)}</div>
         <div style="font-size:10px;color:var(--dim);">${f.size_mb}MB</div>
+        <button class="lib-download" title="Baixar arquivo" onclick="event.stopPropagation();downloadLibFile('${f.url}','${f.filename.replace(/'/g, "\\'")}')">⬇️</button>
         <button class="lib-del" title="Excluir arquivo" onclick="event.stopPropagation();deleteLibFile('${f.path.replace(/'/g, "\\'")}')">🗑️</button>
       </div>`).join('');
     if (!folders.length && !files.length)
@@ -1994,6 +1995,15 @@ async function deleteLibFolder(path) {
     toast('🗑️ Pasta excluída.');
     loadLibrary();
   } catch(e) { toast('❌ Sem conexão com o servidor.'); }
+}
+
+function downloadLibFile(url, filename) {
+  const a = document.createElement('a');
+  a.href = url + (url.includes('?') ? '&' : '?') + 'download=1';
+  a.download = filename || '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 async function deleteLibFile(path) {
