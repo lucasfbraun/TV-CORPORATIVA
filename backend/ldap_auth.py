@@ -99,7 +99,11 @@ def ldap_authenticate(ad_username, password, cfg=None):
     AD inacessível — sempre nega o acesso, por design: é assim que 'desligou
     no AD, perde acesso aqui' funciona)."""
     cfg = cfg or load_ldap()
-    if not cfg.get("enabled") or not ad_username or not password:
+    if not ad_username or not password:
+        return None
+    if not cfg.get("enabled"):
+        log.warning("Login via AD negado para '%s': o interruptor 'Habilitar login via AD' está "
+                     "desligado nas configurações do sistema.", ad_username)
         return None
     if not cfg.get("server") or not cfg.get("domain") or not cfg.get("base_dn"):
         log.warning("Login via AD tentado com LDAP mal configurado (faltam server/domain/base_dn).")
@@ -108,6 +112,8 @@ def ldap_authenticate(ad_username, password, cfg=None):
     try:
         conn = _connect(cfg, upn, password)
         if conn is None:
+            log.warning("Login via AD negado para '%s': bind recusado (usuário/senha incorretos, ou a "
+                         "conta está bloqueada/expirada/exige troca de senha no AD).", ad_username)
             return None
         try:
             safe_user = escape_filter_chars(ad_username)
