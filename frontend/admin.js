@@ -1065,7 +1065,8 @@ function openMediaModal(id=null) {
   document.getElementById('media-url').value      = url;
   document.getElementById('media-caption').value  = s?.caption||'';
   document.getElementById('media-duration').value = s?.duration||'';
-  document.getElementById('media-fit').value = s?.fit === 'contain' ? 'contain' : 'cover';
+  // Padrão = "mostrar inteira" (sem cortes) — só usa "cover" se já estava explicitamente assim salvo.
+  document.getElementById('media-fit').value = s?.fit === 'cover' ? 'cover' : 'contain';
   // Compatibilidade: mídias antigas têm 'zoom' único → vira os dois eixos
   const zx = s?.zoomX || s?.zoom || 100;
   const zy = s?.zoomY || s?.zoom || 100;

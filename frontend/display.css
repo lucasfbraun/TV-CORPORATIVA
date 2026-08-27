@@ -225,10 +225,12 @@
   }
   /* Integração (Grafana): preenche a área toda (sem cortar o topo nem deixar vão/barras) */
   .slide-integration .media-fg { object-fit: fill; }
-  /* Vídeo e imagem: preenchem toda a área acima da barra (cover) — sem faixas, sem esticar.
-     O ajuste/zoom por mídia (admin) sobrepõe via style inline. */
-  .slide-media video { object-fit: cover; }
-  .slide-media img.media-fg { object-fit: cover; }
+  /* Regras abaixo são só o fallback caso o inline style falhe — o ajuste real
+     (cover/contain, por padrão "contain" = nunca corta) vem do campo `fit` de
+     cada mídia (admin) e é aplicado via style inline em display.js, que sempre
+     tem prioridade sobre estas classes. */
+  .slide-media video { object-fit: contain; }
+  .slide-media img.media-fg { object-fit: contain; }
   .slide-media { overflow: hidden; }  /* zoom > 100% não vaza para fora do slide */
   .slide-media iframe { width: 100%; height: 100%; border: none; }
   /* YouTube: preenche toda a área (cover), sem barras pretas, mantendo o rodapé */

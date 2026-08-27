@@ -177,7 +177,9 @@ function buildMediaSlide(s) {
   // (largura % × altura %, centralizada) e o conteúdo é esticado exatamente
   // para ela (object-fit:fill) → muda a proporção SEM cortar. Acima de 100%
   // a caixa passa da tela e aí sim as bordas saem do quadro.
-  const fit = s.fit === 'contain' ? 'contain' : 'cover';
+  // Padrão = contain (nunca corta) — só usa cover se foi explicitamente escolhido;
+  // mídia sem o campo 'fit' (dado antigo, anterior a este ajuste) também cai em contain.
+  const fit = s.fit === 'cover' ? 'cover' : 'contain';
   const clamp = v => Math.max(25, Math.min(300, parseInt(v) || 100));
   const zx = clamp(s.zoomX || s.zoom);
   const zy = clamp(s.zoomY || s.zoom);
