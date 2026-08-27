@@ -111,7 +111,6 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
 .type-badge.kpi          { background:#e8f6ee;color:#2a7a45; }
 .type-badge.calendar     { background:#fff4e5;color:#a06000; }
 .type-badge.media        { background:#f3e8fd;color:#6a2a9f; }
-.type-badge.gallery      { background:#fde8f3;color:#9f2a6a; }
 .type-badge.news         { background:#e6eefb;color:#2e5b8a; }
 .type-badge.urlshot      { background:#efe8fd;color:#5a3a8a; }
 .type-badge.integration  { background:#e2f3ef;color:#0f6e64; }
@@ -261,7 +260,6 @@ body { font-family:'Roboto','Segoe UI',Arial,sans-serif; background:var(--gray);
 .tl-seg.kpi          { background:var(--green); }
 .tl-seg.calendar     { background:var(--accent); color:rgba(0,0,0,.55); }
 .tl-seg.media        { background:#9c27b0; }
-.tl-seg.gallery      { background:var(--red); }
 .tl-seg.inactive     { opacity:.35; }
 
 /* UPLOAD ZONE */

@@ -162,28 +162,6 @@
       </div>
     </div>
 
-    <!-- ── GALERIA ────────────────────────────────────── -->
-    <div class="panel" id="panel-gallery">
-      <div id="ctx-gallery" class="grade-ctx-bar">
-        📋 Editando grade: <b id="ctx-grade-name-gallery">–</b>
-        &nbsp;|&nbsp; Trocar:
-        <select onchange="switchActiveGrade(this.value)"></select>
-      </div>
-      <div class="card">
-        <div class="card-title"><span>🗂️</span> Slides de Galeria</div>
-        <p style="font-size:13px;color:var(--dim);margin-bottom:16px;">
-          Uma galeria exibe várias imagens em sequência dentro de um único slide, com crossfade suave.
-        </p>
-        <div class="action-row" style="margin-bottom:14px;">
-          <button class="btn btn-primary" onclick="openGalleryModal()">➕ Nova Galeria</button>
-        </div>
-        <table class="tbl">
-          <thead><tr><th>Título</th><th>Imagens</th><th>Intervalo</th><th>Status</th><th>Ações</th></tr></thead>
-          <tbody id="gallery-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-
     <!-- ── LINHA DO TEMPO ───────────────────────────────── -->
     <div class="panel" id="panel-timeline">
       <div id="ctx-timeline" class="grade-ctx-bar">
@@ -208,7 +186,6 @@
           <span style="font-size:12px;color:var(--dim);margin-right:4px;">Adicionar:</span>
           <button class="btn btn-outline btn-sm" onclick="quickAdd('announcement')">📣 Aviso</button>
           <button class="btn btn-outline btn-sm" onclick="quickAdd('media')">🖼️ Mídia</button>
-          <button class="btn btn-outline btn-sm" onclick="quickAdd('gallery')">🗂️ Galeria</button>
           <button class="btn btn-outline btn-sm" onclick="quickAddFromLibrary()">📁 Biblioteca</button>
           <button class="btn btn-outline btn-sm" onclick="openCaptureModal()">🌐 Página (URL)</button>
           <button class="btn btn-outline btn-sm" onclick="addGrafanaSlide()">📊 Grafana</button>
@@ -1085,45 +1062,6 @@
     <div class="action-row-end">
       <button class="btn btn-outline" onclick="closeModal('modal-media')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveMedia()">💾 Salvar Mídia</button>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: Galeria -->
-<div class="modal-overlay" id="modal-gallery">
-  <div class="modal" style="max-width:620px;">
-    <div class="modal-title">
-      <span>🗂️</span> Galeria de Imagens
-      <button class="modal-close" onclick="closeModal('modal-gallery')">×</button>
-    </div>
-    <input type="hidden" id="gallery-edit-id">
-    <div class="form-group">
-      <label class="form-label">Título da Galeria (opcional)</label>
-      <input class="form-input" id="gallery-title" placeholder="Ex: Fotos do Evento de Integração">
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">⏱️ Intervalo entre imagens (segundos)</label>
-        <input class="form-input" type="number" id="gallery-interval" min="2" max="60" value="4">
-        <small style="color:var(--dim);font-size:11px;">Tempo por imagem na rotação interna.</small>
-      </div>
-      <div class="form-group">
-        <label class="form-label">⏱️ Duração total do slide (segundos)</label>
-        <input class="form-input" type="number" id="gallery-duration" min="5" max="3600" placeholder="Padrão da grade">
-      </div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Imagens da Galeria</label>
-      <div id="gallery-images-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
-      <button class="btn btn-outline btn-sm" onclick="addGalleryImageRow()">➕ Adicionar Imagem</button>
-    </div>
-    <div class="toggle-row">
-      <div class="toggle on" id="gallery-active-toggle" onclick="this.classList.toggle('on')"></div>
-      <span class="toggle-label">Slide ativo</span>
-    </div>
-    <div class="action-row-end">
-      <button class="btn btn-outline" onclick="closeModal('modal-gallery')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveGallery()">💾 Salvar Galeria</button>
     </div>
   </div>
 </div>

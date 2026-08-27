@@ -41,8 +41,8 @@
     top: 4px; left: 0; right: 0; bottom: 56px;
     overflow: hidden;
   }
-  /* Mídia (imagem/vídeo/galeria) preenche a TELA INTEIRA; a barra fica por cima.
-     Assim uma imagem 16:9 encaixa na tela 16:9 sem cortar nada. */
+  /* Mídia em modo "preencher a tela" (fit=cover) e YouTube usam a TELA INTEIRA,
+     por trás da barra inferior (ver goTo() em display.js). */
   #slides-container.fullbleed { top: 0; bottom: 0 !important; }
 
   .slide {
@@ -266,33 +266,6 @@
     text-align: center; font-size: 18px;
     background: rgba(0,0,0,0.6); padding: 10px 20px;
     color: var(--white);
-  }
-
-  /* ── SLIDE: GALLERY ─────────────────────────────────── */
-  .slide-gallery {
-    background: #000;
-    align-items: center; justify-content: center;
-  }
-  .gallery-wrap {
-    position: absolute; inset: 0;
-  }
-  .gallery-item {
-    position: absolute; inset: 0;
-    opacity: 0;
-    transition: opacity 0.9s ease-in-out;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .gallery-item.active { opacity: 1; }
-  .gallery-item .media-fg, .gallery-item img {
-    position: relative; z-index: 1;
-    width: 100%; height: 100%; object-fit: cover;  /* preenche a área */
-  }
-  .gallery-title {
-    position: absolute; top: 20px; left: 0; right: 0;
-    text-align: center; font-size: 22px; font-weight: 700;
-    color: var(--accent);
-    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
-    z-index: 5;
   }
 
   /* ── SLIDE: CALENDAR ────────────────────────────────── */

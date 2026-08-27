@@ -136,7 +136,7 @@ function updateGradePill() {
   if (g) { pill.style.display='block'; nameEl.textContent = g.name; }
   else    { pill.style.display='none'; }
   // update grade context bars
-  ['ann','kpi','cal','media','gallery','tl'].forEach(key => {
+  ['ann','kpi','cal','media','tl'].forEach(key => {
     const el = document.getElementById(`ctx-grade-name-${key}`);
     if (el) el.textContent = g?.name || '–';
   });
@@ -149,11 +149,11 @@ function updateGradePill() {
 // ═══════════════════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════════════════
-const CONTENT_PANELS = ['announcements','calendar','media','gallery','timeline'];
+const CONTENT_PANELS = ['announcements','calendar','media','timeline'];
 const PANEL_TITLES = {
   dashboard:'Dashboard', tvs:'TVs',
   announcements:'Avisos', calendar:'Agenda',
-  media:'Mídia', gallery:'Galeria', timeline:'Grade de Programação',
+  media:'Mídia', timeline:'Grade de Programação',
   biblioteca:'Biblioteca de Arquivos', rodapes:'Barra inferior',
   users:'Usuários', profiles:'Perfis de Acesso',
   integrations:'Integrações', smtp:'Servidor de E-mail (SMTP)',
@@ -208,7 +208,6 @@ function renderAll() {
   renderAnnouncements();
   renderCalendar();
   renderMedia();
-  renderGallery();
   renderTimeline();
   renderRodapes();
   renderConfig();
@@ -221,7 +220,7 @@ function updateSlideCountBadge() {
     `${DATA.tvs.length} TVs · ${DATA.grades.length} grades · ${total} slides ativos`;
 }
 
-const typeLabels = {announcement:'Aviso',kpi:'KPI',calendar:'Agenda',media:'Mídia',gallery:'Galeria'};
+const typeLabels = {announcement:'Aviso',kpi:'KPI',calendar:'Agenda',media:'Mídia'};
 
 // ── Dashboard ─────────────────────────────────────────────
 function renderDashboard() {
@@ -432,24 +431,6 @@ function renderMedia() {
         <button class="btn btn-danger btn-sm" onclick="deleteSlide(${s.id})">🗑️</button>
       </td>
     </tr>`).join('') || '<tr><td colspan="5" style="color:var(--dim);text-align:center;padding:20px">Nenhuma mídia cadastrada</td></tr>';
-}
-
-// ── Galeria ───────────────────────────────────────────────
-function renderGallery() {
-  const galleries = activeSlides().filter(s => s.type === 'gallery');
-  const tbody = document.getElementById('gallery-tbody');
-  if (!tbody) return;
-  tbody.innerHTML = galleries.map(s => `
-    <tr>
-      <td>${s.title||'–'}</td>
-      <td>${(s.images||[]).length} imagem(ns)</td>
-      <td>${s.image_interval||4}s por imagem</td>
-      <td><span class="status-dot ${s.active?'on':'off'}"></span>${s.active?'Ativo':'Inativo'}</td>
-      <td class="action-row">
-        <button class="btn btn-outline btn-sm" onclick="openGalleryModal(${s.id})">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteSlide(${s.id})">🗑️</button>
-      </td>
-    </tr>`).join('') || '<tr><td colspan="5" style="color:var(--dim);text-align:center;padding:20px">Nenhuma galeria cadastrada</td></tr>';
 }
 
 // ── Config ────────────────────────────────────────────────
@@ -1395,57 +1376,6 @@ function saveIntgSlide() {
   save(DATA); renderAll(); closeModal('modal-intgslide'); toast('Integração adicionada à grade!');
 }
 
-// ── Galeria ───────────────────────────────────────────────
-function addGalleryImageRow(url='', caption='') {
-  const list = document.getElementById('gallery-images-list');
-  const idx = list.children.length;
-  const row = document.createElement('div');
-  row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:4px;';
-  row.innerHTML = `
-    <input class="form-input" style="flex:2;" placeholder="URL da imagem" value="${url.replace(/"/g,'&quot;')}" oninput="">
-    <input class="form-input" style="flex:1;" placeholder="Legenda (opcional)" value="${caption.replace(/"/g,'&quot;')}">
-    <label class="btn btn-outline btn-sm" title="Enviar arquivo" style="cursor:pointer;padding:6px 10px;">
-      📁<input type="file" accept=".png,.jpg,.jpeg" style="display:none;" onchange="uploadGalleryRowFile(this)">
-    </label>
-    <button class="btn btn-danger btn-sm" onclick="this.closest('div').remove()" title="Remover">🗑️</button>`;
-  list.appendChild(row);
-}
-function openGalleryModal(id=null) {
-  document.getElementById('gallery-edit-id').value = id||'';
-  const s = id ? activeSlides().find(x => x.id === id) : null;
-  document.getElementById('gallery-title').value    = s?.title||'';
-  document.getElementById('gallery-interval').value = s?.image_interval||4;
-  document.getElementById('gallery-duration').value = s?.duration||'';
-  document.getElementById('gallery-active-toggle').classList.toggle('on', s ? !!s.active : true);
-  const list = document.getElementById('gallery-images-list');
-  list.innerHTML = '';
-  (s?.images||[]).forEach(img => addGalleryImageRow(img.url, img.caption||''));
-  if (!s?.images?.length) addGalleryImageRow();
-  openModal('modal-gallery');
-}
-function saveGallery() {
-  const id       = document.getElementById('gallery-edit-id').value;
-  const dur      = parseInt(document.getElementById('gallery-duration').value) || null;
-  const interval = parseInt(document.getElementById('gallery-interval').value) || 4;
-  const rows     = document.querySelectorAll('#gallery-images-list > div');
-  const images   = [];
-  rows.forEach(row => {
-    const inputs = row.querySelectorAll('input');
-    const url    = inputs[0]?.value.trim();
-    if (url) images.push({ url, caption: inputs[1]?.value.trim()||'' });
-  });
-  if (!images.length) { toast('⚠️ Adicione ao menos uma imagem.'); return; }
-  const obj = {
-    id: id ? parseInt(id) : nextSlideId(),
-    type: 'gallery',
-    active: document.getElementById('gallery-active-toggle').classList.contains('on'),
-    title:          document.getElementById('gallery-title').value.trim(),
-    image_interval: interval, duration: dur, images,
-  };
-  pushOrUpdateSlide(obj, id);
-  save(DATA); renderAll(); closeModal('modal-gallery'); toast('Galeria salva!');
-}
-
 // ═══════════════════════════════════════════════════════════
 // CONFIG & BACKUP
 // ═══════════════════════════════════════════════════════════
@@ -1522,7 +1452,7 @@ function renderTimeline() {
   const legendEl  = document.getElementById('tl-legend');
   if (!barEl || !cardsEl) return;
 
-  const labels = {announcement:'Aviso',kpi:'KPI',calendar:'Agenda',media:'Mídia',gallery:'Galeria',news:'Notícias',urlshot:'Página',integration:'Grafana'};
+  const labels = {announcement:'Aviso',kpi:'KPI',calendar:'Agenda',media:'Mídia',news:'Notícias',urlshot:'Página',integration:'Grafana'};
   const durs   = slides.map(s => (s.duration && s.duration > 0) ? s.duration : defDur);
   const total  = durs.reduce((a,b) => a+b, 0) || 1;
 
@@ -1537,7 +1467,7 @@ function renderTimeline() {
 
   // Legend
   const types = [...new Set(slides.map(s => s.type))];
-  const legendColors = {announcement:'var(--blue-light)',kpi:'var(--green)',calendar:'var(--accent)',media:'#9c27b0',gallery:'var(--red)'};
+  const legendColors = {announcement:'var(--blue-light)',kpi:'var(--green)',calendar:'var(--accent)',media:'#9c27b0'};
   legendEl.innerHTML = types.map(t =>
     `<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${legendColors[t]||'#ccc'};margin-right:4px;"></span>${labels[t]||t}</span>`
   ).join('');
@@ -1600,10 +1530,6 @@ function slidePreview(s) {
     if (/\.pdf(\?|#|$)/i.test(url)) return `<span class="gp-ico">📄</span>`;
     if (url) return `<img src="${url}" alt="" onerror="this.style.display='none'">`;
     return `<span class="gp-ico">🖼️</span>`;
-  }
-  if (s.type === 'gallery') {
-    const first = (s.images && s.images[0] && s.images[0].url) || '';
-    return first ? `<img src="${first}" alt="" onerror="this.style.display='none'">` : `<span class="gp-ico">🗂️</span>`;
   }
   if (s.type === 'announcement') {
     return `<div class="gp-ann" style="background:linear-gradient(135deg,var(--blue-light),var(--blue-mid));">
@@ -1734,7 +1660,6 @@ function editSlide(id) {
   if (!s) return;
   if (s.type === 'announcement') openAnnModal(id);
   else if (s.type === 'media') openMediaModal(id);
-  else if (s.type === 'gallery') openGalleryModal(id);
   else if (s.type === 'news') openNewsModal(id);
   else if (s.type === 'urlshot') openCaptureModal(id);
   else if (s.type === 'integration') { showPanel('integrations'); toast('Gerencie o Grafana (credenciais) aqui.'); }
@@ -1788,7 +1713,6 @@ function tlToggle(id) {
 function quickAdd(type) {
   if (type === 'announcement') openAnnModal();
   else if (type === 'media')   openMediaModal();
-  else if (type === 'gallery') openGalleryModal();
   else if (type === 'calendar') openEventModal();
 }
 
@@ -1881,31 +1805,6 @@ async function uploadMediaFile(file) {
     } else {
       nameEl.textContent = '❌ Erro: servidor não disponível. Inicie server.py.';
       toast('❌ Servidor não encontrado. Inicie server.py para upload de arquivos.');
-    }
-  }
-}
-
-// Upload por linha de galeria
-async function uploadGalleryRowFile(input) {
-  const file = input.files?.[0]; if (!file) return;
-  const row   = input.closest('div');
-  const urlInput = row.querySelector('input[type=text], input:not([type])');
-  const btn   = input.parentElement;
-  btn.textContent = '⏳';
-  try {
-    const url = await uploadToServer(file, null, null);
-    if (urlInput) urlInput.value = url;
-    btn.textContent = '✅';
-    setTimeout(() => { btn.innerHTML = '📁<input type="file" accept=".png,.jpg,.jpeg" style="display:none;" onchange="uploadGalleryRowFile(this)">'; }, 2000);
-    toast('Imagem enviada!');
-  } catch(err) {
-    if (file.type.startsWith('image/') && file.size < 1*1024*1024) {
-      const reader = new FileReader();
-      reader.onload = e2 => { if (urlInput) urlInput.value = e2.target.result; btn.textContent = '✅'; };
-      reader.readAsDataURL(file);
-    } else {
-      btn.textContent = '❌';
-      toast('❌ Servidor não disponível. Inicie server.py.');
     }
   }
 }

@@ -219,45 +219,6 @@ function buildMediaSlide(s) {
     </div>`;
 }
 
-// ── Galeria ──────────────────────────────────────────────
-// Galeria: múltiplas imagens dentro de um único slide,
-// rotacionando com crossfade suave.
-const galleryTimers = {};
-
-function buildGallerySlide(s) {
-  const imgs = (s.images || []);
-  const items = imgs.map((img, i) => `
-    <div class="gallery-item ${i===0?'active':''}" data-idx="${i}">
-      <div class="media-bg" style="background-image:url('${(img.url||'').replace(/'/g, '%27')}')"></div>
-      <img class="media-fg" src="${img.url}" alt="${img.caption||''}">
-      ${img.caption ? `<div class="media-caption">${img.caption}</div>` : ''}
-    </div>`).join('');
-  return `
-    <div class="slide slide-gallery" id="slide-${s.id}">
-      <div class="gallery-wrap">${items || '<div style="font-size:60px;opacity:.3">🖼️</div>'}</div>
-      ${s.title ? `<div class="gallery-title">${s.title}</div>` : ''}
-    </div>`;
-}
-
-function startGallery(slideId, intervalSec) {
-  stopGallery(slideId);
-  const wrap = document.querySelector(`#slide-${slideId} .gallery-wrap`);
-  if (!wrap) return;
-  const items = wrap.querySelectorAll('.gallery-item');
-  if (items.length <= 1) return;
-  let idx = 0;
-  galleryTimers[slideId] = setInterval(() => {
-    items[idx].classList.remove('active');
-    idx = (idx + 1) % items.length;
-    items[idx].classList.add('active');
-  }, (intervalSec || 4) * 1000);
-}
-
-function stopGallery(slideId) {
-  clearInterval(galleryTimers[slideId]);
-  delete galleryTimers[slideId];
-}
-
 // ═══════════════════════════════════════════════════════
 // CONTROLE DE SLIDES
 // ═══════════════════════════════════════════════════════
@@ -298,8 +259,13 @@ function scheduleMatches(s, now) {
   }
   return true;
 }
+// Tipos que o init() sabe desenhar. Um slide de tipo desconhecido (ex.: 'kpi', ou um tipo
+// removido como 'gallery' que ainda exista em cache do navegador ou backup antigo) precisa
+// ficar de fora da rotação aqui — senão vira um <div class="dot"> sem slide correspondente
+// no DOM, e todos os índices depois dele saem de sincronia com goTo()/dots.
+const RENDERABLE_SLIDE_TYPES = new Set(['announcement', 'calendar', 'media', 'news', 'urlshot', 'integration']);
 function activeSlides(content) {
-  return (content.slides || []).filter(s => s.active && s.type !== 'kpi' && scheduleMatches(s));
+  return (content.slides || []).filter(s => s.active && RENDERABLE_SLIDE_TYPES.has(s.type) && scheduleMatches(s));
 }
 
 let _lastVisibleKey = '';
@@ -336,7 +302,6 @@ function init() {
     if      (s.type === 'announcement') html = buildAnnouncementSlide(s);
     else if (s.type === 'calendar')     html = buildCalendarSlide(s);
     else if (s.type === 'media')        html = buildMediaSlide(s);
-    else if (s.type === 'gallery')      html = buildGallerySlide(s);
     else if (s.type === 'news')         html = buildNewsSlide(s);
     else if (s.type === 'urlshot')      html = buildUrlshotSlide(s);
     else if (s.type === 'integration')  html = buildIntegrationSlide(s);
@@ -431,12 +396,11 @@ function goTo(idx) {
   const all = document.querySelectorAll('.slide');
   const dots = document.querySelectorAll('.dot');
 
-  // Pausar vídeo/galeria do slide anterior
+  // Pausar vídeo do slide anterior
   if (all[current]) {
     const prevVid = all[current].querySelector('video');
     if (prevVid) { prevVid.pause(); prevVid.currentTime = 0; }
     const prevSlide = slides[current];
-    if (prevSlide?.type === 'gallery') stopGallery(prevSlide.id);
     if (prevSlide?.type === 'media' && youtubeId(prevSlide.url)) destroyYTPlayer();
     all[current].classList.remove('active');
   }
@@ -452,11 +416,7 @@ function goTo(idx) {
       const pr = vid.play();
       if (pr && pr.catch) pr.catch(() => { try { vid.load(); vid.play().catch(() => {}); } catch (e) {} });
     }
-    // Iniciar rotação de galeria
     const curSlide = slides[current];
-    if (curSlide?.type === 'gallery') {
-      startGallery(curSlide.id, curSlide.image_interval || 4);
-    }
     if (curSlide?.type === 'media' && youtubeId(curSlide.url)) playYouTubeFor(curSlide);
     if (curSlide?.type === 'news') { const st = document.getElementById('news-' + curSlide.id); if (st) advanceNews(st); }
     if (curSlide?.type === 'integration') refreshIntegration(curSlide);
@@ -474,8 +434,7 @@ function goTo(idx) {
   const curT = slides[current];
   let fullbleed = false;
   if (curT) {
-    if (curT.type === 'gallery') fullbleed = true;
-    else if (curT.type === 'media') {
+    if (curT.type === 'media') {
       const isPdf = /\.pdf(\?|#|$)/i.test(curT.url || '');
       // YouTube sempre preenche a tela toda: o embed não tem opção "mostrar inteira" (o CSS
       // dele já é fixo em 100vw/100vh), então precisa do fullbleed independente do fit.
