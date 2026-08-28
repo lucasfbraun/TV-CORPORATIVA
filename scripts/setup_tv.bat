@@ -23,8 +23,9 @@ echo   Script de Instalacao Automatica
 echo  ============================================================
 echo.
 
-:: ── Solicitar IP do servidor ──────────────────────────────────
-set /p SERVER_IP="  Digite o IP do servidor (ex: 192.168.1.10): "
+:: ── Solicitar endereco do servidor ────────────────────────────
+set /p SERVER_HOST="  Endereco do servidor (padrao=tv.grupoflexivel.com.br): "
+if "!SERVER_HOST!"=="" set SERVER_HOST=tv.grupoflexivel.com.br
 set /p TV_NUM="  Numero desta TV (ex: 01, 02 ... 20): "
 set /p TV_SLUG="  Slug/identificador da tela (ex: recepcao, padrao=principal): "
 if "!TV_SLUG!"==""   set TV_SLUG=principal
@@ -34,7 +35,7 @@ set /p DESLIGAR_HORA="  Horario de DESLIGAR a TV (ex: 18:00, padrao=18:00): "
 if "!LIGAR_HORA!"==""     set LIGAR_HORA=07:30
 if "!DESLIGAR_HORA!"=""   set DESLIGAR_HORA=18:00
 
-set TV_URL=http://!SERVER_IP!:8080/tela/!TV_SLUG!
+set TV_URL=https://!SERVER_HOST!/tela/!TV_SLUG!
 set TASK_NAME=TV_Corporativa_%TV_NUM%
 set STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
 
@@ -109,7 +110,7 @@ echo     OK: Tarefa de abertura criada (!LIGAR_HORA!)
 :: ── 5. Registrar no log ───────────────────────────────────────
 echo  [5/5] Registrando instalacao...
 set LOG_FILE=%~dp0log_instalacao.txt
-echo [%date% %time%] TV !TV_NUM! configurada. IP Servidor: !SERVER_IP!. Ligar: !LIGAR_HORA! Desligar: !DESLIGAR_HORA! >> "!LOG_FILE!"
+echo [%date% %time%] TV !TV_NUM! configurada. Endereco do servidor: !SERVER_HOST!. Ligar: !LIGAR_HORA! Desligar: !DESLIGAR_HORA! >> "!LOG_FILE!"
 echo     OK: Log salvo em log_instalacao.txt
 
 :: ── Resumo ────────────────────────────────────────────────────

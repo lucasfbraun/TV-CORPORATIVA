@@ -1,0 +1,4 @@
+tv.grupoflexivel.com.br {
+	tls internal
+	reverse_proxy tv-corporativa:8080
+}

@@ -1,3 +1,5 @@
+name: tv-corporativa
+
 services:
   db:
     image: postgres:15-alpine
@@ -41,5 +43,24 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  https-proxy:
+    image: caddy:2.11.4-alpine
+    container_name: tv-corporativa-https
+    ports:
+      # A porta 80 redireciona HTTP para HTTPS.
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy:/etc/caddy:ro
+      # Certificados e chaves precisam persistir entre recriacoes do container.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - tv-corporativa
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:

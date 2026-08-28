@@ -53,7 +53,32 @@ Abra um terminal **na pasta do projeto** e rode:
 docker compose up -d --build
 ```
 
-Pronto. Acesse o painel em **http://localhost:8080/admin**
+Pronto. Acesse o painel em:
+
+- **https://tv.grupoflexivel.com.br/admin** (HTTPS, porta 443)
+- **http://localhost:8080/admin** (acesso local direto, mantido para suporte)
+
+O proxy Caddy emite e renova automaticamente um certificado pela CA interna dele.
+O DNS interno de `tv.grupoflexivel.com.br` deve apontar para o IP do servidor e
+as portas TCP 80/443 precisam estar liberadas na máquina. Libere também UDP 443
+caso queira disponibilizar HTTP/3.
+
+Como o nome existe apenas no DNS interno, instale a CA raiz do Caddy como uma
+autoridade confiável nos computadores das TVs e dos administradores. Depois da
+primeira inicialização, execute como Administrador no servidor Windows:
+
+```bat
+docker compose cp https-proxy:/data/caddy/pki/authorities/local/root.crt "%TEMP%\tv-caddy-root.crt"
+certutil -addstore -f "ROOT" "%TEMP%\tv-caddy-root.crt"
+```
+
+Distribua o mesmo arquivo `tv-caddy-root.crt` para os players (de preferência
+por Política de Grupo) e instale-o em **Autoridades de Certificação Raiz
+Confiáveis**. Sem isso, o navegador avisará que o certificado não é confiável.
+
+Se no futuro o domínio for publicado no DNS da internet e 80/443 forem
+encaminhadas externamente para este servidor, remova a linha `tls internal` de
+`caddy/Caddyfile`; o Caddy passará a usar uma autoridade pública automaticamente.
 
 
 Comandos úteis:
@@ -83,8 +108,8 @@ Ele cria o atalho em modo quiosque, agenda ligar/desligar e impede a tela de apa
 A TV abrirá automaticamente uma URL como:
 
 ```
-http://<IP-DO-SERVIDOR>:8080/tela/recepcao
-http://<IP-DO-SERVIDOR>:8080/tela/producao
+https://tv.grupoflexivel.com.br/tela/recepcao
+https://tv.grupoflexivel.com.br/tela/producao
 ```
 
 O *slug* (`recepcao`, `producao`, ...) é definido no painel admin, em **TVs**.
