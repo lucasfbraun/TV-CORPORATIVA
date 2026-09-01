@@ -60,25 +60,32 @@ Pronto. Acesse o painel em:
 
 O proxy Caddy emite e renova automaticamente um certificado pela CA interna dele.
 O DNS interno de `tv.grupoflexivel.com.br` deve apontar para o IP do servidor e
-as portas TCP 80/443 precisam estar liberadas na máquina. Libere também UDP 443
-caso queira disponibilizar HTTP/3.
+a porta TCP 443 precisa estar liberada na máquina. Libere também UDP 443 caso
+queira disponibilizar HTTP/3. A porta 80 permanece com o Apache já instalado no
+servidor e não é publicada pelo Caddy.
 
 Como o nome existe apenas no DNS interno, instale a CA raiz do Caddy como uma
 autoridade confiável nos computadores das TVs e dos administradores. Depois da
-primeira inicialização, execute como Administrador no servidor Windows:
+primeira inicialização, exporte o certificado no servidor Linux:
 
-```bat
-docker compose cp https-proxy:/data/caddy/pki/authorities/local/root.crt "%TEMP%\tv-caddy-root.crt"
-certutil -addstore -f "ROOT" "%TEMP%\tv-caddy-root.crt"
+```bash
+docker compose cp https-proxy:/data/caddy/pki/authorities/local/root.crt ./tv-caddy-root.crt
 ```
 
-Distribua o mesmo arquivo `tv-caddy-root.crt` para os players (de preferência
-por Política de Grupo) e instale-o em **Autoridades de Certificação Raiz
-Confiáveis**. Sem isso, o navegador avisará que o certificado não é confiável.
+Copie `tv-caddy-root.crt` para os computadores Windows e execute o PowerShell
+como Administrador:
 
-Se no futuro o domínio for publicado no DNS da internet e 80/443 forem
-encaminhadas externamente para este servidor, remova a linha `tls internal` de
-`caddy/Caddyfile`; o Caddy passará a usar uma autoridade pública automaticamente.
+```powershell
+certutil -addstore -f "ROOT" "$env:USERPROFILE\Downloads\tv-caddy-root.crt"
+```
+
+Distribua o mesmo certificado para os players (de preferência por Política de
+Grupo). Sem isso, o navegador avisará que o certificado não é confiável.
+
+Se no futuro o domínio for publicado no DNS da internet, será necessário planejar
+a validação pública do certificado considerando que o Apache já ocupa a porta 80.
+Consulte [docs/HTTPS_CONTINUACAO.md](docs/HTTPS_CONTINUACAO.md) para o estado dos
+testes e os próximos passos.
 
 
 Comandos úteis:

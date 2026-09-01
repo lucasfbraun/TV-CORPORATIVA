@@ -47,8 +47,7 @@ services:
     image: caddy:2.11.4-alpine
     container_name: tv-corporativa-https
     ports:
-      # A porta 80 redireciona HTTP para HTTPS.
-      - "80:80"
+      # A porta 80 do servidor pertence ao Apache; o Caddy publica apenas HTTPS.
       - "443:443"
       - "443:443/udp"
     volumes:
