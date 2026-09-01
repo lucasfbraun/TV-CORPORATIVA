@@ -1,4 +1,6 @@
 tv.grupoflexivel.com.br {
-	tls internal
+	tls {
+		dns cloudflare {env.CF_API_TOKEN}
+	}
 	reverse_proxy tv-corporativa:8080
 }

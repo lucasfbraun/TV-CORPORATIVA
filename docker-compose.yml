@@ -44,17 +44,22 @@ services:
     restart: unless-stopped
 
   https-proxy:
-    image: caddy:2.11.4-alpine
+    build: ./caddy
     container_name: tv-corporativa-https
     ports:
       # A porta 80 do servidor pertence ao Apache; o Caddy publica apenas HTTPS.
       - "443:443"
       - "443:443/udp"
     volumes:
-      - ./caddy:/etc/caddy:ro
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       # Certificados e chaves precisam persistir entre recriacoes do container.
       - caddy_data:/data
       - caddy_config:/config
+    environment:
+      # Token do Cloudflare com permissão "Zone:DNS:Edit" só na zona
+      # grupoflexivel.com.br, usado para provar posse do domínio via DNS-01
+      # e emitir certificado público (Let's Encrypt) sem expor a aplicação.
+      - CF_API_TOKEN=${CF_API_TOKEN:?defina CF_API_TOKEN no .env}
     depends_on:
       - tv-corporativa
     restart: unless-stopped

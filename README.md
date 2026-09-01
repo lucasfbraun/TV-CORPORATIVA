@@ -58,34 +58,22 @@ Pronto. Acesse o painel em:
 - **https://tv.grupoflexivel.com.br/admin** (HTTPS, porta 443)
 - **http://localhost:8080/admin** (acesso local direto, mantido para suporte)
 
-O proxy Caddy emite e renova automaticamente um certificado pela CA interna dele.
-O DNS interno de `tv.grupoflexivel.com.br` deve apontar para o IP do servidor e
-a porta TCP 443 precisa estar liberada na máquina. Libere também UDP 443 caso
-queira disponibilizar HTTP/3. A porta 80 permanece com o Apache já instalado no
-servidor e não é publicada pelo Caddy.
+O proxy Caddy emite e renova automaticamente um certificado **público** (Let's
+Encrypt), validado por DNS-01 na zona `grupoflexivel.com.br` (hospedada no
+Cloudflare). Por isso o certificado é confiável em qualquer navegador, sem
+precisar instalar nada nos computadores ou nas TVs — mesmo com
+`tv.grupoflexivel.com.br` resolvendo apenas no DNS interno, já que a
+validação DNS-01 não exige a aplicação acessível pela internet.
 
-Como o nome existe apenas no DNS interno, instale a CA raiz do Caddy como uma
-autoridade confiável nos computadores das TVs e dos administradores. Depois da
-primeira inicialização, exporte o certificado no servidor Linux:
+Isso exige um `CF_API_TOKEN` no `.env` (veja `.env.example`), com permissão
+"Edit zone DNS" restrita à zona `grupoflexivel.com.br`. O DNS interno de
+`tv.grupoflexivel.com.br` deve continuar apontando para o IP do servidor, e a
+porta TCP 443 precisa estar liberada na máquina (libere também UDP 443 para
+HTTP/3). A porta 80 permanece com o Apache já instalado no servidor e não é
+publicada pelo Caddy.
 
-```bash
-docker compose cp https-proxy:/data/caddy/pki/authorities/local/root.crt ./tv-caddy-root.crt
-```
-
-Copie `tv-caddy-root.crt` para os computadores Windows e execute o PowerShell
-como Administrador:
-
-```powershell
-certutil -addstore -f "ROOT" "$env:USERPROFILE\Downloads\tv-caddy-root.crt"
-```
-
-Distribua o mesmo certificado para os players (de preferência por Política de
-Grupo). Sem isso, o navegador avisará que o certificado não é confiável.
-
-Se no futuro o domínio for publicado no DNS da internet, será necessário planejar
-a validação pública do certificado considerando que o Apache já ocupa a porta 80.
-Consulte [docs/HTTPS_CONTINUACAO.md](docs/HTTPS_CONTINUACAO.md) para o estado dos
-testes e os próximos passos.
+Consulte [docs/HTTPS_CONTINUACAO.md](docs/HTTPS_CONTINUACAO.md) para o passo a
+passo de criação do token no Cloudflare e o estado dos testes.
 
 
 Comandos úteis:
