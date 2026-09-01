@@ -777,9 +777,10 @@ window.addEventListener('storage', e => {
 // SINCRONIZAÇÃO COM SERVIDOR (server.py)
 // ═══════════════════════════════════════════════════════
 const SERVER_URL = (() => {
-  // Se a página for servida pelo server.py, usa a mesma origem
+  // Se a página for servida pelo server.py (direto ou via proxy HTTPS), usa a mesma origem
   if (location.protocol === 'http:' && location.port === '8080')
     return location.origin;
+  if (location.hostname !== '') return location.origin; // qualquer contexto de servidor
   return null; // modo arquivo local
 })();
 
