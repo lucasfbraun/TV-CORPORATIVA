@@ -4,15 +4,14 @@
 
 ## Status
 
-Em andamento: migrando de CA interna do Caddy (exigia instalar um
-certificado manualmente em cada máquina) para **certificado público** (Let's
-Encrypt), validado por DNS-01 na zona `grupoflexivel.com.br` no Cloudflare.
-Com isso, ninguém precisa mais instalar nada — o navegador confia
-automaticamente.
-
-Código já alterado (`caddy/Dockerfile`, `caddy/Caddyfile`,
-`docker-compose.yml`, `.env.example`). Falta: criar o token no Cloudflare,
-configurar `.env` no servidor e fazer o deploy.
+Concluído. Migrado de CA interna do Caddy (exigia instalar um certificado
+manualmente em cada máquina) para **certificado público** (Let's Encrypt),
+validado por DNS-01 na zona `grupoflexivel.com.br` no Cloudflare. Confirmado
+em produção em 01/09/2026: log do Caddy mostrou
+`"certificate obtained successfully"` com
+`"issuer":"acme-v02.api.letsencrypt.org-directory"`. Ninguém precisa mais
+instalar CA nenhuma — o navegador confia automaticamente em qualquer
+computador.
 
 ## Por que isso é possível sem expor a aplicação à internet
 
@@ -74,6 +73,44 @@ Esperado: `certificate obtained successfully` com `"issuer":"acme-v02.api.letsen
 Testar em qualquer computador **sem** a CA interna instalada — inclusive um
 que nunca acessou o sistema antes. Deve abrir com cadeado verde/seguro sem
 nenhuma instalação prévia.
+
+## Adicionar outro domínio no futuro
+
+Depende de onde o domínio está hospedado:
+
+**Mesma zona `grupoflexivel.com.br`** (ex.: `outra-coisa.grupoflexivel.com.br`):
+basta adicionar um novo bloco no `caddy/Caddyfile` reaproveitando o mesmo
+`CF_API_TOKEN` — o token já é válido pra zona inteira, não só pro subdomínio
+`tv`:
+
+```caddyfile
+outra-coisa.grupoflexivel.com.br {
+	tls {
+		dns cloudflare {env.CF_API_TOKEN}
+	}
+	reverse_proxy outro-servico:PORTA
+}
+```
+
+Depois `docker compose up -d --build https-proxy` de novo (não precisa mexer
+no Dockerfile nem no token).
+
+**Domínio diferente, também no Cloudflare** (outra zona, mesma conta ou
+conta diferente): mesma coisa acima, mas o token precisa ter permissão nessa
+zona também — ou crie um segundo token e use uma variável de ambiente própria
+pra esse domínio.
+
+**Domínio em outro provedor de DNS** (não Cloudflare): o plugin
+`caddy-dns/cloudflare` só resolve desafios na Cloudflare. Seria necessário
+trocar ou adicionar outro módulo DNS no `caddy/Dockerfile` (a lista de
+provedores suportados está em https://caddyserver.com/download, procurando
+por "dns.providers"), e configurar suas credenciais.
+
+**Se o domínio nem existir publicamente** (só DNS interno, sem zona
+registrada em lugar nenhum): não dá pra emitir certificado público — nesse
+caso a alternativa é voltar pra CA interna (`tls internal`) pra esse domínio
+específico, como era antes dessa migração (veja o histórico no fim deste
+documento).
 
 ## O que fazer com a CA interna já instalada nas máquinas
 
