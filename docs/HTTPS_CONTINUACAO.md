@@ -133,6 +133,27 @@ expirar.
 Não recriar os volumes `caddy_data`/`caddy_config`: eles guardam as chaves da
 conta ACME e os certificados emitidos.
 
+### O token do Cloudflare não renova sozinho
+
+A renovação automática acima é só do **certificado**. O `CF_API_TOKEN` é uma
+coisa separada e só expira se você tiver definido isso na criação:
+
+- Ao criar o token em https://dash.cloudflare.com/profile/api-tokens existe
+  um campo opcional de **TTL** (data de início/expiração).
+- Se ficou em branco, o token **não expira sozinho** — só se alguém revogar
+  manualmente no painel.
+- Se uma data foi definida, o token para de funcionar nela. As renovações do
+  certificado passam a falhar silenciosamente (o certificado antigo continua
+  válido até vencer, mas nenhum novo é emitido) até alguém notar e trocar o
+  token.
+
+Verificar periodicamente em
+https://dash.cloudflare.com/profile/api-tokens se o token em uso tem
+expiração configurada. Se tiver, remover o limite ou anotar a data para gerar
+um novo token e atualizar o `CF_API_TOKEN` no `.env` do servidor antes de
+vencer (depois `docker compose up -d https-proxy` para recarregar a
+variável).
+
 ## Se falhar
 
 Causas mais comuns:
