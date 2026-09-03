@@ -777,10 +777,12 @@ window.addEventListener('storage', e => {
 // SINCRONIZAÇÃO COM SERVIDOR (server.py)
 // ═══════════════════════════════════════════════════════
 const SERVER_URL = (() => {
-  // Se a página for servida pelo server.py, usa a mesma origem
-  if (location.protocol === 'http:' && location.port === '8080')
+  // A página pode ser servida direto pelo server.py (porta 8080) ou por trás de
+  // um proxy reverso (sem porta explícita, http ou https). Em qualquer origem
+  // HTTP(S) a API fica na mesma origem — só o modo arquivo local fica sem servidor.
+  if (location.protocol === 'http:' || location.protocol === 'https:')
     return location.origin;
-  return null; // modo arquivo local
+  return null; // modo arquivo local (file://)
 })();
 
 let _lastSyncStr = null;   // conteúdo rastreado EM MEMÓRIA (não depende de o localStorage persistir)
