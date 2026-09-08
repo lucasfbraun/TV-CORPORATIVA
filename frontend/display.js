@@ -713,13 +713,31 @@ function prefetchNews() {
   });
 }
 
-// Remove notícias que contenham qualquer palavra proibida (no título ou fonte)
+// Minúsculas, sem acentos e sem pontuação — mesma normalização do servidor,
+// para "politica" (digitado nas Configurações) casar com "política" (manchete).
+function newsNorm(text) {
+  return (text || '').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+// Remove notícias que contenham qualquer palavra proibida (no título ou fonte).
+// O servidor já filtra em /api/news; isto é a segunda camada, para o caso de a
+// TV estar com uma resposta antiga em cache.
 function filterBlocked(items, blockStr) {
-  const words = (blockStr || '').split(',').map(w => w.trim().toLowerCase()).filter(Boolean);
+  const words = (blockStr || '').split(',').map(newsNorm).filter(Boolean);
   if (!words.length) return items;
+  // Mesma regra do servidor (backend/news_filter.py): palavra inteira, com o
+  // "s" final opcional dos dois lados — "drogas" pega "droga" e vice-versa,
+  // sem que "droga" derrube uma notícia sobre "drogaria".
+  // newsNorm já reduz tudo a [a-z0-9 ], então não há metacaractere para escapar.
+  const rxs = words.map(w => {
+    const stem = (w.endsWith('s') && w.length > 3) ? w.slice(0, -1) : w;
+    return new RegExp('(?:^| )' + stem + 's?(?= |$)');
+  });
   return items.filter(n => {
-    const text = ((n.title || '') + ' ' + (n.source || '')).toLowerCase();
-    return !words.some(w => text.includes(w));
+    const text = newsNorm((n.title || '') + ' ' + (n.source || ''));
+    return !rxs.some(rx => rx.test(text));
   });
 }
 

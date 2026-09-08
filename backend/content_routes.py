@@ -3,8 +3,10 @@ Rotas de conteúdo (grades/TVs/rodapés) e widgets públicos das TVs:
 cotações, previsão do tempo e notícias.
 """
 import os
+import re
 import json
 import time
+import unicodedata
 import urllib.request
 import urllib.parse
 from datetime import date
@@ -14,6 +16,7 @@ from flask import Blueprint, request, jsonify
 from config import DATA_DIR, log
 from storage import _read_json, _write_json, load_content, save_content
 from security import login_required
+import news_filter
 
 bp = Blueprint("content", __name__)
 
@@ -204,9 +207,26 @@ GNEWS_CAT = {
 }
 
 
+
+def _enrich_images(items):
+    """Busca a og:image das matérias que vieram sem imagem, em paralelo.
+
+    Roda DEPOIS do filtro: não faz sentido gastar requisições em notícia que
+    não vai ao ar.
+    """
+    missing = [i for i in items if not i.get("image") and i.get("_link")]
+    if missing:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            for it, img in zip(missing, ex.map(lambda i: _og_image(i["_link"]), missing)):
+                it["image"] = img
+    for i in items:
+        i.pop("_link", None)
+    return items
+
+
 def _og_image(url):
     """Tenta extrair a imagem principal (og:image) da página da matéria."""
-    import re
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (TV-Corporativa)"})
         with urllib.request.urlopen(req, timeout=4) as resp:
@@ -243,7 +263,6 @@ def _news_gnews(cat):
 
 
 def _news_google(cat):
-    import re
     url = ("https://news.google.com/rss?hl=pt-BR&gl=BR&ceid=BR:pt-419" if cat == "TOP"
            else f"https://news.google.com/rss/headlines/section/topic/{cat}?hl=pt-BR&gl=BR&ceid=BR:pt-419")
     req = urllib.request.Request(url, headers={"User-Agent": "TV-Corporativa"})
@@ -273,18 +292,8 @@ def _news_google(cat):
             title, source = head.strip(), source or tail.strip()
         if title:
             items.append({"title": title, "source": source, "image": image, "_link": link})
-        if len(items) >= 10:
+        if len(items) >= 40:   # colhe bastante: o filtro abaixo derruba boa parte
             break
-
-    # Enriquecimento de imagem (og:image) para os que não têm, em paralelo
-    missing = [i for i in items if not i.get("image") and i.get("_link")]
-    if missing:
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=6) as ex:
-            for it, img in zip(missing, ex.map(lambda i: _og_image(i["_link"]), missing)):
-                it["image"] = img
-    for i in items:
-        i.pop("_link", None)
     return items
 
 
@@ -292,12 +301,18 @@ def fetch_news(category):
     cat = (category or "TOP").upper()
     if cat not in NEWS_LABELS:
         cat = "TOP"
+    cfg = (load_content() or {}).get("config") or {}
+    terms = news_filter.block_terms(cfg)
+    block_sig = "|".join(terms)
+
     cache = _read_json(NEWS_FILE, {})
     if not isinstance(cache, dict):
         cache = {}
     hit = cache.get(cat)
     now = time.time()
-    if hit and hit.get("ok"):
+    # Cache só vale enquanto a lista de bloqueio for a mesma: mexeu nas
+    # palavras proibidas no admin, a próxima chamada já rebusca e refiltra.
+    if hit and hit.get("ok") and hit.get("block_sig") == block_sig:
         age = now - hit.get("_ts", 0)
         # GNews fica em cache por 30 min (poupa o limite diário da chave).
         # Se caiu no plano B (Google News, sem imagem), expira em 2 min para retentar o GNews logo.
@@ -318,11 +333,38 @@ def fetch_news(category):
                 items = _news_google(cat)
         else:
             items = _news_google(cat)
+
+        fetched = len(items)
+        items, blocked = news_filter.filter_items(items, terms)
+        # O GNews devolve só 10 manchetes; se o filtro derrubar quase todas,
+        # completa com o Google News (que devolve dezenas) em vez de deixar a
+        # TV com "Sem notícias disponíveis".
+        if provider == "gnews" and len(items) < 5:
+            try:
+                seen = {news_filter.news_norm(i.get("title")) for i in items}
+                for extra in _news_google(cat):
+                    if news_filter.is_blocked(extra, terms):
+                        continue
+                    if news_filter.news_norm(extra.get("title")) in seen:
+                        continue
+                    seen.add(news_filter.news_norm(extra.get("title")))
+                    items.append(extra)
+                    fetched += 1
+                    if len(items) >= 12:
+                        break
+            except Exception as e:  # noqa: BLE001
+                log.warning("Reserva Google News falhou (%s): %s", cat, e)
+
+        blocked = fetched - len(items)
+        items = _enrich_images(items[:12])
+        if blocked:
+            log.info("Notícias (%s): %d de %d bloqueadas pelas palavras proibidas.",
+                     cat, blocked, fetched)
         with_image = sum(1 for i in items if i.get("image"))
         out = {"ok": True, "_ts": now, "category": cat,
                "label": NEWS_LABELS.get(cat, "Notícias"),
                "provider": provider, "key_set": bool(NEWS_API_KEY),
-               "gnews_error": gnews_error,
+               "gnews_error": gnews_error, "block_sig": block_sig, "blocked": blocked,
                "with_image": with_image, "total": len(items), "items": items}
         cache[cat] = out
         _write_json(NEWS_FILE, cache)
@@ -330,7 +372,11 @@ def fetch_news(category):
     except Exception as e:  # noqa: BLE001
         log.warning("Falha ao buscar notícias (%s): %s", cat, e)
         if hit:
-            return {**hit, "stale": True}
+            # Cache antigo pode ter sido filtrado com outra lista de bloqueio —
+            # refiltra antes de devolver, senão uma falha de rede reabriria a
+            # porta para o que o usuário mandou bloquear.
+            kept, _ = news_filter.filter_items(hit.get("items") or [], terms)
+            return {**hit, "items": kept, "total": len(kept), "stale": True}
         return {"ok": False, "category": cat, "label": NEWS_LABELS.get(cat, "Notícias"), "items": []}
 
 

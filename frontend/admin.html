@@ -454,10 +454,18 @@
             <input class="form-input" type="number" id="cfg-slide-dur" min="5" max="60" value="12">
           </div>
         </div>
+        <div class="toggle-row" style="margin-bottom:16px;">
+          <div class="toggle on" id="cfg-news-politics-toggle" onclick="this.classList.toggle('on')"></div>
+          <span class="toggle-label">🏛️ Bloquear notícias de política</span>
+        </div>
+        <small style="color:var(--dim);font-size:11px;display:block;margin:-10px 0 16px;">
+          Barra o assunto inteiro (STF, Congresso, eleições, ministros, partidos, políticos brasileiros e estrangeiros),
+          não só nomes soltos. Manchete como “Suprema Corte rejeita…” ou “Motta recebe projeto do governo…” não passa.
+        </small>
         <div class="form-group">
           <label class="form-label">🚫 Palavras proibidas nas notícias (global, separadas por vírgula)</label>
           <input class="form-input" id="cfg-news-block" placeholder="ex: tragédia, morte, acidente, facção">
-          <small style="color:var(--dim);font-size:11px;">Vale para TODOS os slides de notícia. Notícias cujo título ou fonte contenha qualquer uma dessas palavras não serão exibidas.</small>
+          <small style="color:var(--dim);font-size:11px;">Vale para TODOS os slides de notícia, <b>somando-se</b> ao bloqueio de política acima. Notícias cujo título ou fonte contenha qualquer uma dessas palavras não são exibidas. Acentos e maiúsculas não importam (“politica” pega “Política”) e o plural é automático (“droga” pega “drogas”).</small>
         </div>
         <div class="action-row-end">
           <button class="btn btn-primary" onclick="saveConfig()">💾 Salvar Configurações</button>

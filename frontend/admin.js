@@ -444,6 +444,9 @@ function renderConfig() {
   if (el1) el1.value = cfg.company_name||'';
   if (el2) el2.value = cfg.slide_duration||12;
   if (el3) el3.value = cfg.news_blocklist||'';
+  const el4 = document.getElementById('cfg-news-politics-toggle');
+  // Ausente na configuracao (instalacao antiga) = ligado: e o padrao do servidor.
+  if (el4) el4.classList.toggle('on', cfg.news_block_politics !== false);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1386,6 +1389,8 @@ function saveConfig() {
   DATA.config.company_name   = document.getElementById('cfg-company').value;
   DATA.config.slide_duration = parseInt(document.getElementById('cfg-slide-dur').value) || 12;
   DATA.config.news_blocklist = document.getElementById('cfg-news-block').value.trim();
+  DATA.config.news_block_politics =
+    document.getElementById('cfg-news-politics-toggle').classList.contains('on');
   save(DATA); renderAll(); toast('Configurações salvas!');
 }
 function exportContent() {
