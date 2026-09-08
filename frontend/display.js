@@ -141,12 +141,42 @@ function buildUrlshotSlide(s) {
   const z = zoom / 100;
   const sizePct = (100 / zoom * 100).toFixed(2);   // viewport maior p/ caber mais conteúdo
   const st = `width:${sizePct}%;height:${sizePct}%;transform:scale(${z});transform-origin:0 0;`;
+  // O src fica em data-src: quem carrega e descarrega é o manageEmbeds(), na
+  // troca de slides. Ver o comentário lá embaixo para o porquê.
   return `
     <div class="slide slide-embed" id="slide-${s.id}">
-      ${url ? `<iframe src="${url}" style="${st}" referrerpolicy="no-referrer" loading="eager"></iframe>`
+      ${url ? `<iframe data-src="${url}" style="${st}" referrerpolicy="no-referrer"></iframe>`
             : `<div class="news-loading">URL não definida</div>`}
       ${s.title ? `<div class="media-caption">${s.title}</div>` : ''}
     </div>`;
+}
+
+// Antes, todos os <iframe> de slides de URL eram criados com o src no init() e
+// ficavam vivos para sempre: cada site de destino seguia rodando seu
+// JavaScript, seus timers e suas animações 24h por dia, mesmo com o slide fora
+// da tela. Com alguns slides desses, isso pesa na TV e em quem hospeda essas
+// páginas — que aqui costuma ser o próprio servidor.
+//
+// Agora só ficam carregados o slide atual e o PRÓXIMO. Carregar o próximo com
+// uma duração de slide de antecedência é o que evita a tela em branco na
+// troca; e entrar recarregado tem um efeito colateral bem-vindo: a página
+// aparece com dados atuais, em vez do que carregou quando a TV ligou.
+function manageEmbeds() {
+  if (!slides.length) return;
+  const all = document.querySelectorAll('.slide');
+  const next = (current + 1) % slides.length;
+  all.forEach((el, i) => {
+    const fr = el.querySelector('iframe[data-src]');
+    if (!fr) return;
+    const url = fr.dataset.src;
+    if (i === current || i === next) {
+      if (fr.getAttribute('src') !== url) fr.setAttribute('src', url);
+    } else if (fr.getAttribute('src') !== 'about:blank') {
+      // about:blank descarrega o documento de fato (timers inclusive). Mexer
+      // no contentWindow não serviria: em site de outra origem, dá SecurityError.
+      fr.setAttribute('src', 'about:blank');
+    }
+  });
 }
 
 function buildNewsSlide(s) {
@@ -421,6 +451,7 @@ function goTo(idx) {
     if (curSlide?.type === 'news') { const st = document.getElementById('news-' + curSlide.id); if (st) advanceNews(st); }
     if (curSlide?.type === 'integration') refreshIntegration(curSlide);
   }
+  manageEmbeds();   // carrega o slide de URL atual e o próximo; descarrega o resto
   dots.forEach((d,i) => d.classList.toggle('active', i===current));
 
   // Integração (playlist) = modo aplicação: sem barra de progresso visível

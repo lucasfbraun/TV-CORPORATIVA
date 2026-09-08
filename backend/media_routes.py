@@ -9,6 +9,7 @@ from flask import Blueprint, request, jsonify, send_from_directory, send_file, a
 from werkzeug.utils import secure_filename
 
 import db
+import grafana
 import media_cache
 from config import UPLOADS_DIR, ALLOWED_EXTENSIONS
 from storage import load_content, save_content, guess_mime
@@ -211,6 +212,9 @@ def serve_upload(filename):
     as_attachment = request.args.get("download") in ("1", "true", "yes")
     # Capturas do Grafana continuam em disco (transitórias, regeneradas a cada poucos segundos)
     if filename.startswith("captures/") or safe.startswith("captures/"):
+        # Avisa o worker que alguém está olhando: é o que faz ele voltar ao
+        # ritmo normal de captura (e desacelerar quando o painel sai de cena).
+        grafana.note_capture_request(safe)
         return send_from_directory(UPLOADS_DIR, safe, as_attachment=as_attachment)
 
     # Caminho rápido: já está no cache em disco. Servir de um arquivo deixa o
