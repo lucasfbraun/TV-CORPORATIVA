@@ -10,6 +10,7 @@ from datetime import datetime
 from flask import Blueprint, request, session, jsonify, send_file, after_this_request
 
 import db
+import media_cache
 from config import EMAIL_RE, log
 from storage import load_users
 from security import require_perm
@@ -187,7 +188,8 @@ def _do_restore(req):
             os.remove(path)
         except OSError:
             pass
-    db.reset_pool()  # reconecta após a troca dos dados
+    db.reset_pool()          # reconecta após a troca dos dados
+    media_cache.clear_all()  # o cache em disco descreve a mídia ANTIGA
     if proc.returncode != 0:
         return jsonify({"error": proc.stderr.decode("utf-8", "ignore")[:400] or "pg_restore falhou"}), 500
     log.warning("Banco de dados RESTAURADO a partir de um backup enviado.")

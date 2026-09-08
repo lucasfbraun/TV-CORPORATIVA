@@ -110,8 +110,13 @@ if __name__ == "__main__":
 
     try:
         from waitress import serve
-        log.info("Servindo com waitress em %s:%s", HOST, PORT)
-        serve(app, host=HOST, port=PORT)
+        # O padrão do waitress é 4 threads. Como cada requisição de mídia pode
+        # segurar uma thread por vários segundos, 4 TVs pedindo vídeo ao mesmo
+        # tempo travavam o site inteiro — admin e API junto. TV_THREADS ajusta;
+        # o pool do Postgres (TV_DB_POOL_MAX) precisa continuar maior que isso.
+        threads = int(os.environ.get("TV_THREADS", "16"))
+        log.info("Servindo com waitress em %s:%s (%d threads)", HOST, PORT, threads)
+        serve(app, host=HOST, port=PORT, threads=threads)
     except ImportError:
         log.warning("waitress não instalado — usando servidor de desenvolvimento do Flask.")
         log.warning("Para produção: pip install waitress")

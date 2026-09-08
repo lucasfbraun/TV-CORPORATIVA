@@ -9,6 +9,7 @@ from flask import Blueprint, request, jsonify, send_from_directory, send_file, a
 from werkzeug.utils import secure_filename
 
 import db
+import media_cache
 from config import UPLOADS_DIR, ALLOWED_EXTENSIONS
 from storage import load_content, save_content, guess_mime
 from security import login_required
@@ -187,6 +188,21 @@ def move_file():
     return jsonify({"status": "ok", "url": f"/uploads/{new_rel}", "path": new_rel})
 
 
+def _send_media_file(caminho, mime, rel, as_attachment):
+    """Envia o arquivo do disco. Mesmos cabeçalhos de antes, com uma diferença:
+    a partir de um caminho real o Werkzeug consegue gerar ETag/Last-Modified,
+    então o navegador revalida com 304 em vez de rebaixar o arquivo inteiro
+    quando os 5 minutos de cache expiram."""
+    return send_file(
+        caminho,
+        mimetype=mime or "application/octet-stream",
+        conditional=True,
+        max_age=300,
+        as_attachment=as_attachment,
+        download_name=os.path.basename(rel) or "arquivo",
+    )
+
+
 @bp.route("/uploads/<path:filename>")
 def serve_upload(filename):
     safe = safe_rel_path(filename)
@@ -196,6 +212,14 @@ def serve_upload(filename):
     # Capturas do Grafana continuam em disco (transitórias, regeneradas a cada poucos segundos)
     if filename.startswith("captures/") or safe.startswith("captures/"):
         return send_from_directory(UPLOADS_DIR, safe, as_attachment=as_attachment)
+
+    # Caminho rápido: já está no cache em disco. Servir de um arquivo deixa o
+    # streaming, o Range e o 304 por conta do Werkzeug — sem trazer o blob
+    # inteiro do Postgres para a memória a cada pedaço que a TV pede.
+    cached, cached_mime = media_cache.local(safe)
+    if cached:
+        return _send_media_file(cached, cached_mime, safe, as_attachment)
+
     rec = db.media_get(safe)
     if rec is None:
         # compatibilidade: arquivo ainda em disco (ex.: antes da migração)
@@ -203,6 +227,12 @@ def serve_upload(filename):
             return send_from_directory(UPLOADS_DIR, safe, as_attachment=as_attachment)
         abort(404)
     data, mime = rec
+    # Primeiro acesso: guarda em disco e passa a servir de lá.
+    salvo = media_cache.store(safe, data, mime)
+    if salvo:
+        return _send_media_file(salvo, mime, safe, as_attachment)
+
+    # Sem cache (disco cheio/somente leitura, ou TV_MEDIA_CACHE=0): caminho antigo.
     # Usa send_file (em vez de um Response simples) para responder corretamente a
     # requisições HTTP Range (206 Partial Content). O <video> do navegador depende
     # disso para carregar/buscar o arquivo em pedaços; sem Range, o servidor sempre

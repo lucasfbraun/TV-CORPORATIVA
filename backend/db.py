@@ -17,7 +17,14 @@ import psycopg2
 from psycopg2.pool import ThreadedConnectionPool
 from psycopg2.extras import Json
 
+import media_cache
+
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+# Tamanho do pool. Precisa acompanhar o numero de threads do servidor
+# (TV_THREADS): se faltar conexao, o psycopg2 levanta "connection pool
+# exhausted" em vez de esperar.
+POOL_MAX = int(os.environ.get("TV_DB_POOL_MAX", "24"))
 
 _pool = None
 _lock = threading.Lock()
@@ -30,7 +37,7 @@ def _get_pool():
             if _pool is None:
                 if not DATABASE_URL:
                     raise RuntimeError("DATABASE_URL não configurada")
-                _pool = ThreadedConnectionPool(1, 12, dsn=DATABASE_URL)
+                _pool = ThreadedConnectionPool(1, POOL_MAX, dsn=DATABASE_URL)
     return _pool
 
 
@@ -124,6 +131,7 @@ def media_put(path, data, mime=None):
             """,
             (path, psycopg2.Binary(data), mime, len(data)),
         )
+    media_cache.invalidate(path)
 
 
 def media_get(path):
@@ -145,12 +153,14 @@ def media_exists(path):
 def media_delete(path):
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute("DELETE FROM media WHERE path = %s", (path,))
+    media_cache.invalidate(path)
 
 
 def media_delete_prefix(prefix):
     """Remove todos os arquivos sob uma pasta (prefixo terminado em '/')."""
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute("DELETE FROM media WHERE path LIKE %s", (prefix + "%",))
+    media_cache.invalidate_prefix(prefix)
 
 
 def media_list():
@@ -164,6 +174,8 @@ def media_move(old_path, new_path):
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute("UPDATE media SET path = %s, updated_at = now() WHERE path = %s",
                     (new_path, old_path))
+    media_cache.invalidate(old_path)
+    media_cache.invalidate(new_path)
 
 
 # ── Pastas da biblioteca ──────────────────────────────────────────────────────

@@ -36,6 +36,14 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-tvcorp}:${POSTGRES_PASSWORD:-tvcorp}@db:5432/${POSTGRES_DB:-tvcorporativa}
       # Chave para restaurar backup pela tela de login (deixe vazio para desativar)
       - TV_RESTORE_KEY=${TV_RESTORE_KEY:-}
+      # Threads do servidor web. O padrao do waitress e 4, e uma requisicao de
+      # video segura uma thread por varios segundos: com poucas TVs o site
+      # inteiro parecia travar. O pool do Postgres precisa ser maior que isto.
+      - TV_THREADS=${TV_THREADS:-16}
+      - TV_DB_POOL_MAX=${TV_DB_POOL_MAX:-24}
+      # Cache em disco da midia (data/media-cache). TV_MEDIA_CACHE=0 desliga e
+      # volta a servir os arquivos direto do banco, como antes.
+      - TV_MEDIA_CACHE=${TV_MEDIA_CACHE:-1}
     depends_on:
       db:
         condition: service_healthy
